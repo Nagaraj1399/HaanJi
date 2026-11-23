@@ -1,0 +1,113 @@
+wedding:
+  id: w_demo
+  title: "Sharma & Reddy Wedding"
+  subtitle: "Aarav & Ananya · Bengaluru"
+  dates: "28–29 November 2026"
+  city: "Bengaluru, Karnataka"
+  demo_notice: "Fictional demonstration wedding data for HaanJi hackathon."
+
+functions:
+  - id: mehendi
+    name: "Mehendi & Haldi"
+    name_hi: "मेहंदी और हल्दी"
+    name_kn: "ಮೆಹಂದಿ ಮತ್ತು ಹಳದಿ"
+    name_ta: "மெஹந்தி & ஹல்தி"
+    date: "28 Nov 2026"
+    time: "11:00 AM"
+    venue: "Mango Grove Lawn, Tamarind Tree"
+    venue_kn: "ಮ್ಯಾಂಗೋ ಗ್ರೋವ್ ಲಾನ್, ಟ್ಯಾಮರಿಂಡ್ ಟ್ರೀ"
+    venue_ta: "மாங்கோ க்ரோவ் லான், டேமரிண்ட் ட்ரீ"
+    maps_url: "https://maps.google.com/?q=The+Tamarind+Tree+Bengaluru"
+    dress_code: "Yellow, mustard, or floral festive wear"
+    menu:
+      - item: "Masala Chaat & Pesarattu Live Counter"
+        tags: ["veg", "jain_available"]
+      - item: "Jain Raw Banana Kofta & Jeera Rice"
+        tags: ["veg", "jain", "no_onion_garlic"]
+      - item: "Mangalorean Ghee Roast (Paneer & Chicken)"
+        tags: ["veg_option", "nonveg"]
+
+  - id: sangeet
+    name: "Sangeet Night"
+    name_hi: "संगीत संध्या"
+    name_kn: "ಸಂಗೀತ ರಾತ್ರಿ"
+    name_ta: "சங்கீத் இரவு"
+    date: "28 Nov 2026"
+    time: "7:30 PM"
+    venue: "Lotus Courtyard, Tamarind Tree"
+    venue_kn: "ಲೋಟಸ್ ಕೋರ್ಟ್‌ಯಾರ್ಡ್, ಟ್ಯಾಮರಿಂಡ್ ಟ್ರೀ"
+    venue_ta: "லோட்டஸ் முற்றம், டேமரிண்ட் ட்ரீ"
+    maps_url: "https://maps.google.com/?q=The+Tamarind+Tree+Bengaluru"
+    dress_code: "Indo-western shimmer or cocktail festive"
+    menu:
+      - item: "Rajasthani Dal Baati & Churma"
+        tags: ["veg", "no_onion_garlic"]
+      - item: "Jain Paneer Tikka & Dal Tadka (No Onion/Garlic)"
+        tags: ["veg", "jain", "no_onion_garlic"]
+      - item: "Chettinad Mutton Pepper Fry & Appam"
+        tags: ["nonveg"]
+
+  - id: shaadi
+    name: "Muhurat & Shaadi"
+    name_hi: "मुहूर्त और शादी"
+    name_kn: "ಮುಹೂರ್ತ ಮತ್ತು ಮದುವೆ"
+    name_ta: "முகூர்த்தம் & திருமணம்"
+    date: "29 Nov 2026"
+    time: "9:30 AM"
+    venue: "Banyan Mandap, Tamarind Tree"
+    venue_kn: "ಬನಿಯನ್ ಮಂಟಪ, ಟ್ಯಾಮರಿಂಡ್ ಟ್ರೀ"
+    venue_ta: "பனியன் மண்டபம், டேமரிண்ட் ட்ரீ"
+    maps_url: "https://maps.google.com/?q=The+Tamarind+Tree+Bengaluru"
+    dress_code: "Traditional silk sarees, Kanjeevaram, or kurta-dhoti"
+    menu:
+      - item: "Traditional Banana Leaf Sadhya (No Onion/Garlic)"
+        tags: ["veg", "jain", "no_onion_garlic"]
+      - item: "Mysore Pak & Filter Kaapi"
+        tags: ["veg", "jain"]
+
+  - id: reception
+    name: "Grand Reception"
+    name_hi: "रिसेप्शन"
+    name_kn: "ಆರತಕ್ಷತೆ"
+    name_ta: "வரவேற்பு"
+    date: "29 Nov 2026"
+    time: "7:00 PM"
+    venue: "Glass Pavilion, Leela Palace"
+    venue_kn: "ಗ್ಲಾಸ್ ಪೆವಿಲಿಯನ್, ಲೀಲಾ ಪ್ಯಾಲೇಸ್"
+    venue_ta: "கிளாஸ் பெவிலியன், லீலா பேலஸ்"
+    maps_url: "https://maps.google.com/?q=The+Leela+Palace+Bengaluru"
+    dress_code: "Black tie, evening gowns, or formal bandhgala"
+    menu:
+      - item: "Awadhi Dum Biryani (Veg & Mutton)"
+        tags: ["veg_option", "nonveg"]
+      - item: "Dedicated Jain & No-Onion-Garlic Buffet Bay"
+        tags: ["veg", "jain", "no_onion_garlic"]
+
+logistics:
+  parking: "Complimentary valet parking at Gate 2 (Tamarind Tree) and Main Porch (Leela Palace)."
+  shuttle: "Shuttle vans run every 20 minutes from Taj MG Road to Tamarind Tree starting 8:30 AM on 29 Nov."
+  contacts:
+    - role: "Guest Hospitality Desk"
+      name: "Meera Sharma (Family Coordinator)"
+      note: "Available at Lobby Welcome Desk"
+    - role: "Transport & Valet Lead"
+      name: "Karthik Reddy (Logistics Coordinator)"
+      note: "Available at Gate 2 Helpdesk"
+
+faqs:
+  - q: "Is Jain and no-onion-garlic food available?"
+    a: "Yes, every function has a dedicated Jain and no-onion-garlic counter clearly labelled at the buffet."
+  - q: "Where is parking available?"
+    a: "Complimentary valet parking is at Gate 2 for Tamarind Tree and at the Main Porch for Leela Palace."
+  - q: "What is the dress code for Mehendi?"
+    a: "Yellow, mustard, or floral festive wear for the Mehendi & Haldi at 11:00 AM."
+  - q: "What time does Sangeet start?"
+    a: "Sangeet Night starts at 7:30 PM on 28 Nov 2026 at Lotus Courtyard, Tamarind Tree."
+  - q: "When is the Shaadi / Muhurat?"
+    a: "Muhurat & Shaadi is at 9:30 AM on 29 Nov 2026 at Banyan Mandap, Tamarind Tree."
+  - q: "Are kids welcome?"
+    a: "Yes, kids are warmly welcome at all four functions, with high chairs and mild kid-friendly meals available."
+  - q: "Is there a shuttle from the hotel?"
+    a: "Yes, shuttle vans run every 20 minutes from Taj MG Road to Tamarind Tree starting 8:30 AM on 29 Nov."
+  - q: "How do I get to Tamarind Tree?"
+    a: "Tamarind Tree is on Kanakapura Road, Bengaluru (Google Maps: https://maps.google.com/?q=The+Tamarind+Tree+Bengaluru)."

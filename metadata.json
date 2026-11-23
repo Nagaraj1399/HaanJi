@@ -1,0 +1,6 @@
+{
+  "name": "HaanJi — Wedding Concierge & Ops Workbench",
+  "description": "Multilingual wedding voice concierge, deterministic RSVP tracker, and full Track A/B automated testing and incident-loop control plane.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
