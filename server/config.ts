@@ -28,12 +28,12 @@ export const VALID_FUNCTION_IDS: FunctionId[] = [
   "reception",
 ];
 
-// Ephemeral startup keys if not supplied by environment; never exposed in client bundle
+// Random startup tokens when not set via env — zero literal fallback token in source or bundle
 export const HOST_KEY =
-  process.env.HAANJI_HOST_KEY || "haanji-host-demo-2026";
+  process.env.HAANJI_HOST_KEY || crypto.randomBytes(16).toString("hex");
 export const OPS_TOKEN =
-  process.env.HAANJI_OPS_TOKEN ||
-  crypto.createHash("sha256").update("haanji-ops-control").digest("hex").slice(0, 24);
+  process.env.HAANJI_OPS_TOKEN || crypto.randomBytes(16).toString("hex");
+export const SESSION_HMAC_SECRET = crypto.randomBytes(24).toString("hex");
 
 export const PERSONAS: Record<
   PersonaArm,

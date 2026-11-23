@@ -31,6 +31,8 @@ export interface RsvpPatch {
 
 export interface GuestRsvp {
   gid: string;
+  household_code?: string | null;
+  household_name?: string | null;
   attending: boolean | null;
   headcount: number | null;
   headcount_range: [number, number] | null;
@@ -38,9 +40,19 @@ export interface GuestRsvp {
   diet: DietBreakdown;
   arrival: string | null;
   needs_room: boolean | null;
+  confirmed: boolean;
   rsvp_complete: boolean;
   warnings: string[];
   updated_at: string;
+}
+
+export interface HouseholdRecord {
+  code: string;
+  family_name: string;
+  preferred_language: "en" | "hi" | "hinglish" | "kn" | "ta";
+  age_band: "standard" | "elder";
+  invited_functions: FunctionId[];
+  gid?: string | null;
 }
 
 export interface WeddingFunction {
@@ -74,7 +86,7 @@ export interface WeddingCard {
     shuttle: string;
     contacts: Array<{ role: string; name: string; note: string }>;
   };
-  faqs: Array<{ q: string; a: string }>;
+  faqs: Array<{ q: string; a: string; added_by_host?: boolean }>;
 }
 
 export interface BrainResult {
@@ -86,6 +98,7 @@ export interface BrainResult {
   followup_question: string | null;
   unanswered_question: string | null;
   confidence: number;
+  matched_function_id?: FunctionId | null;
   grounding_violation?: boolean;
   violation_reason?: string;
 }
@@ -104,7 +117,9 @@ export interface TurnJobResult {
   audio_mime: string | null;
   prerendered_clip: string | null;
   rsvp: GuestRsvp | null;
+  rsvp_needs_confirmation: boolean;
   rsvp_warnings: string[];
+  matched_function: WeddingFunction | null;
   grounding_violation: boolean;
   latency_ms: number;
   stages: {
@@ -126,6 +141,7 @@ export interface UnansweredQuestion {
   created_at: string;
   resolved: boolean;
   added_answer?: string;
+  answered_after_adding: number;
 }
 
 export interface HostAnnouncement {

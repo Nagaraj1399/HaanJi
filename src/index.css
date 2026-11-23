@@ -2,15 +2,15 @@
 
 @theme {
   --font-display: "Fraunces", Georgia, serif;
-  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --font-sans: "Plus Jakarta Sans", "Noto Sans Devanagari", "Noto Sans Kannada", "Noto Sans Tamil", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
 @layer base {
   body {
     font-family: var(--font-sans);
-    background-color: #faf9f6;
-    color: #18181b;
+    background-color: #fbf7f0;
+    color: #1f1a17;
   }
 
   h1, h2, h3, .font-display {
@@ -20,5 +20,30 @@
 
   .tabular-nums {
     font-variant-numeric: tabular-nums;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.96);
+    opacity: 0.7;
+  }
+  70% {
+    transform: scale(1.12);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.12);
+    opacity: 0;
+  }
+}
+
+.marigold-pulse {
+  animation: pulse-ring 2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marigold-pulse {
+    animation: none;
   }
 }

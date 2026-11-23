@@ -230,13 +230,13 @@ export function TestWorkbench() {
   const renderTestList = (list: TestCaseResult[] | null, onRun: () => void, emptyLabel: string) => {
     if (!list) {
       return (
-        <div className="py-12 text-center border border-zinc-200 rounded-2xl bg-white">
-          <p className="text-sm text-zinc-600">{emptyLabel}</p>
+        <div className="py-12 text-center border border-[#C9A96E]/45 rounded-2xl bg-white">
+          <p className="text-sm text-[#5C4F46] max-w-2xl mx-auto px-4">{emptyLabel}</p>
           <button
             type="button"
             onClick={onRun}
             disabled={running !== null}
-            className="mt-4 h-10 px-5 rounded-lg bg-[#C2410C] text-white text-xs font-medium hover:bg-[#9A3412] inline-flex items-center gap-2"
+            className="mt-4 min-h-[44px] px-5 rounded-xl bg-[#6B1E2E] text-white text-xs font-semibold hover:bg-[#541724] inline-flex items-center gap-2"
           >
             <Play className="w-3.5 h-3.5" />
             Run Suite Now
@@ -247,9 +247,9 @@ export function TestWorkbench() {
 
     const passedCount = list.filter((x) => x.passed).length;
     return (
-      <div className="rounded-2xl border border-zinc-200 bg-white overflow-hidden">
-        <div className="px-6 py-4 bg-[#FAF9F6] border-b border-zinc-200 flex items-center justify-between">
-          <span className="text-sm font-semibold text-zinc-900">
+      <div className="rounded-2xl border border-[#C9A96E]/45 bg-white overflow-hidden">
+        <div className="px-6 py-4 bg-[#FBF7F0] border-b border-[#C9A96E]/35 flex items-center justify-between">
+          <span className="text-sm font-semibold text-[#1F1A17]">
             {passedCount} / {list.length} assertions passed
           </span>
           <button
@@ -307,17 +307,17 @@ export function TestWorkbench() {
             type="button"
             onClick={runAllSuites}
             disabled={running !== null}
-            className="h-10 px-5 rounded-lg bg-[#C2410C] text-white text-xs font-medium hover:bg-[#9A3412] disabled:opacity-60 inline-flex items-center gap-2 whitespace-nowrap"
+            className="min-h-[44px] px-5 rounded-xl bg-[#6B1E2E] text-white text-xs font-semibold hover:bg-[#541724] disabled:opacity-60 inline-flex items-center gap-2 whitespace-nowrap"
           >
             <Play className="w-3.5 h-3.5" />
-            <span>{running === "all" ? "Running All Suites…" : "Run All 5 Suites"}</span>
+            <span>{running === "all" ? "Running All Suites..." : "Run All 5 Suites"}</span>
           </button>
 
           <button
             type="button"
             onClick={downloadReport}
             disabled={!aUnit && !golden && !bUnit && !causal && !secTests}
-            className="h-10 px-4 rounded-lg border border-zinc-200 bg-white text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40 inline-flex items-center gap-1.5 whitespace-nowrap"
+            className="min-h-[44px] px-4 rounded-xl border border-[#C9A96E]/60 bg-white text-xs font-medium text-[#1F1A17] hover:bg-[#FBF7F0] disabled:opacity-40 inline-flex items-center gap-1.5 whitespace-nowrap"
           >
             <Download className="w-3.5 h-3.5" />
             Export REPORT.md
@@ -327,13 +327,13 @@ export function TestWorkbench() {
 
       {/* Sub-navigation Segmented Control */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-1 p-1 bg-zinc-100 rounded-xl">
+        <div className="flex flex-wrap items-center gap-1 p-1 bg-[#F3EADF] rounded-xl">
           {[
-            { id: "a-unit", label: `Track A Unit (${aUnit ? `${aUnit.filter((x) => x.passed).length}/${aUnit.length}` : "9"})` },
+            { id: "a-unit", label: `Track A Unit (${aUnit ? `${aUnit.filter((x) => x.passed).length}/${aUnit.length}` : "11"})` },
             { id: "golden", label: `Golden Set (${golden ? `${golden.cases.filter((x) => x.passed).length}/30` : "30"})` },
             { id: "b-unit", label: `Track B Ops Unit (${bUnit ? `${bUnit.filter((x) => x.passed).length}/${bUnit.length}` : "6"})` },
             { id: "causal", label: `Causal Incident Loop (${causal ? (causal.passed ? "PASS" : "FAIL") : "Proof"})` },
-            { id: "security", label: `API & Secret Scan (${secTests ? `${secTests.filter((x) => x.passed).length}/${secTests.length}` : "4"})` },
+            { id: "security", label: `API & Secret Scan (${secTests ? `${secTests.filter((x) => x.passed).length}/${secTests.length}` : "5"})` },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -341,8 +341,8 @@ export function TestWorkbench() {
               onClick={() => setActiveSuite(tab.id as typeof activeSuite)}
               className={`px-3.5 py-2 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
                 activeSuite === tab.id
-                  ? "bg-white text-zinc-900 shadow-sm"
-                  : "text-zinc-600 hover:text-zinc-900"
+                  ? "bg-white text-[#6B1E2E] shadow-sm font-semibold"
+                  : "text-[#5C4F46] hover:text-[#1F1A17]"
               }`}
             >
               {tab.label}
@@ -352,22 +352,22 @@ export function TestWorkbench() {
 
         {activeSuite === "golden" && (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-500">Evaluator Mode:</span>
-            <div className="flex items-center p-1 bg-zinc-100 rounded-lg">
+            <span className="text-xs text-[#5C4F46]">Evaluator Mode:</span>
+            <div className="flex items-center p-1 bg-[#F3EADF] rounded-lg">
               <button
                 type="button"
                 onClick={() => setGoldenMode("replay")}
                 className={`px-2.5 py-1 text-xs font-medium rounded-md ${
-                  goldenMode === "replay" ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-600"
+                  goldenMode === "replay" ? "bg-white text-[#6B1E2E] shadow-sm" : "text-[#5C4F46]"
                 }`}
               >
-                Replay (Offline)
+                Offline Fallback (Not AI)
               </button>
               <button
                 type="button"
                 onClick={() => setGoldenMode("live")}
                 className={`px-2.5 py-1 text-xs font-medium rounded-md ${
-                  goldenMode === "live" ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-600"
+                  goldenMode === "live" ? "bg-white text-[#6B1E2E] shadow-sm" : "text-[#5C4F46]"
                 }`}
               >
                 Live Gemini API
@@ -388,7 +388,7 @@ export function TestWorkbench() {
         renderTestList(
           aUnit,
           runTrackAUnit,
-          "Runs 9 Track A unit checks: schema warnings, RSVP merge, AST purity on 50 random rows, grounding guard, 1000-gid A/B split, 429/402 retry rules, L0/L1/L2 worker behavior, single-fire conversion, and 413 audio guard."
+          "Runs 11 Track A unit checks: schema warnings, RSVP merge, AST purity on 50 random rows, grounding guard (Latin/Kannada/Tamil), 1000-gid A/B split, 429/402 retry rules, L0/L1/L2 worker behavior, single-fire conversion, 413 audio guard, 2-step confirmation, and non-TTS language isolation."
         )}
 
       {activeSuite === "b-unit" &&
@@ -402,24 +402,24 @@ export function TestWorkbench() {
         renderTestList(
           secTests,
           runSecurityScan,
-          "Fires live HTTP requests to verify <300ms /api/turn, 403 on bad Host key, 401 on missing X-Ops-Token, and scans every response + client file for secret leaks."
+          "Fires live HTTP requests to verify <300ms /api/turn, 403 on bad Host key, 401 on missing X-Ops-Token, scans client & bundle files for secret/token leaks, and verifies zero dev terms in GuestConcierge."
         )}
 
       {activeSuite === "golden" && (
         <div className="space-y-6">
           {!golden ? (
-            <div className="py-12 text-center border border-zinc-200 rounded-2xl bg-white">
-              <p className="text-sm text-zinc-600">
+            <div className="py-12 text-center border border-[#C9A96E]/45 rounded-2xl bg-white">
+              <p className="text-sm text-[#5C4F46]">
                 Evaluates 30 labelled multilingual cases (8 factual, 6 RSVP, 6 unanswerable, 4 injection, 4 mixed, 2 off-topic) against the frozen wedding card.
               </p>
               <button
                 type="button"
                 onClick={() => runGolden()}
                 disabled={running !== null}
-                className="mt-4 h-10 px-5 rounded-lg bg-[#C2410C] text-white text-xs font-medium hover:bg-[#9A3412] inline-flex items-center gap-2"
+                className="mt-4 min-h-[44px] px-5 rounded-xl bg-[#6B1E2E] text-white text-xs font-semibold hover:bg-[#541724] inline-flex items-center gap-2"
               >
                 <Play className="w-3.5 h-3.5" />
-                {running === "golden" ? "Evaluating 30 Cases…" : `Run 30-Case Golden Set (${goldenMode})`}
+                {running === "golden" ? "Evaluating 30 Cases..." : `Run 30-Case Golden Set (${goldenMode})`}
               </button>
             </div>
           ) : (
@@ -554,15 +554,15 @@ export function TestWorkbench() {
       {activeSuite === "causal" && (
         <div className="space-y-6">
           {!causal ? (
-            <div className="py-12 text-center border border-zinc-200 rounded-2xl bg-white">
-              <p className="text-sm text-zinc-600">
-                Proves the complete causal incident loop: surge → 429s → alert → pending human approval (3x safety checks confirm level=0) → approve → 429 drop ≥ 80% &amp; TTS=0 → resolved → restore + 2 vs 6 worker scale-out proof.
+            <div className="py-12 text-center border border-[#C9A96E]/45 rounded-2xl bg-white">
+              <p className="text-sm text-[#5C4F46] max-w-2xl mx-auto px-4">
+                Proves the complete causal incident loop: surge &rarr; 429s &rarr; alert &rarr; pending human approval (3x safety checks confirm level=0) &rarr; approve &rarr; 429 drop &ge; 80% &amp; TTS=0 &rarr; resolved &rarr; restore + 2 vs 6 worker scale-out proof.
               </p>
               <button
                 type="button"
                 onClick={runCausalLoop}
                 disabled={running !== null}
-                className="mt-4 h-10 px-5 rounded-lg bg-[#C2410C] text-white text-xs font-medium hover:bg-[#9A3412] inline-flex items-center gap-2"
+                className="mt-4 min-h-[44px] px-5 rounded-xl bg-[#6B1E2E] text-white text-xs font-semibold hover:bg-[#541724] inline-flex items-center gap-2"
               >
                 <ShieldCheck className="w-4 h-4" />
                 Run Causal Loop &amp; Scale-Out Proof

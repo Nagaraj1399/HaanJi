@@ -6,6 +6,7 @@ import {
 import { flags } from "./flags.ts";
 import { metrics } from "./metrics.ts";
 import {
+  detectMatchedFunction,
   runBrainLive,
   runBrainReplay,
   synthesizeSpeech,
@@ -17,6 +18,7 @@ import { DegradationLevel, TurnJobResult } from "./types.ts";
 
 export interface TurnEnqueueInput {
   gid: string;
+  householdCode?: string;
   text?: string;
   audioBase64?: string;
   audioMime?: string;
@@ -39,15 +41,23 @@ export class TurnWorker {
   private jobs = new Map<string, TurnJobResult>();
   private queuedIds: string[] = [];
   private drainRunning = false;
+  private queuedInputs = new Map<string, TurnEnqueueInput>();
 
-  enqueueTurn(input: TurnEnqueueInput): { job_id: string; level: DegradationLevel; status: "pending" | "queued" } {
+  enqueueTurn(input: TurnEnqueueInput): {
+    job_id: string;
+    level: DegradationLevel;
+    status: "pending" | "queued";
+  } {
     if (input.audioBytes !== undefined && input.audioBytes > MAX_AUDIO_BYTES) {
       throw new AudioValidationError(
         `Audio exceeds 2 MB limit (${input.audioBytes} bytes).`,
         413
       );
     }
-    if (input.audioDurationSeconds !== undefined && input.audioDurationSeconds > MAX_AUDIO_SECONDS) {
+    if (
+      input.audioDurationSeconds !== undefined &&
+      input.audioDurationSeconds > MAX_AUDIO_SECONDS
+    ) {
       throw new AudioValidationError(
         `Audio exceeds 30 s limit (${input.audioDurationSeconds}s).`,
         413
@@ -77,7 +87,9 @@ export class TurnWorker {
             ? `/prerendered/${persona}_queued_${(input.languageHint || "en").slice(0, 2)}`
             : null,
       rsvp: store.getRsvp(input.gid),
+      rsvp_needs_confirmation: false,
       rsvp_warnings: [],
+      matched_function: null,
       grounding_violation: false,
       latency_ms: 0,
       stages: { stt_ms: 0, brain_ms: 0, tts_ms: 0 },
@@ -98,8 +110,6 @@ export class TurnWorker {
     return { job_id: jobId, level, status: "pending" };
   }
 
-  private queuedInputs = new Map<string, TurnEnqueueInput>();
-
   private async scheduleDrain(input: TurnEnqueueInput): Promise<void> {
     const lastId = this.queuedIds[this.queuedIds.length - 1];
     if (lastId) this.queuedInputs.set(lastId, input);
@@ -112,7 +122,6 @@ export class TurnWorker {
         const inp = this.queuedInputs.get(nextId);
         this.queuedInputs.delete(nextId);
         if (inp) {
-          // Wait for budget slot before draining queued job
           await new Promise((r) => setTimeout(r, 150));
           await this.processJob(nextId, inp);
         }
@@ -135,7 +144,7 @@ export class TurnWorker {
       let transcript = (input.text || "").trim();
       let detectedLang = input.languageHint || "en-IN";
 
-      // Stage 1: STT (if audio provided)
+      // Stage 1: STT
       if (!transcript && input.audioBase64) {
         const tStt = Date.now();
         if (mode === "replay") {
@@ -179,19 +188,37 @@ export class TurnWorker {
       job.answer_language = brainRes.answer_language || detectedLang;
       job.grounding_violation = Boolean(brainRes.grounding_violation);
 
-      // Apply RSVP patch deterministically
+      // Detect matched function for Map & Calendar chips
+      const fnId =
+        brainRes.matched_function_id ||
+        detectMatchedFunction(job.answer_text, card);
+      job.matched_function = fnId
+        ? card.functions.find((f) => f.id === fnId) ?? null
+        : null;
+
+      // Track whether a host-added FAQ answered this guest
+      if (!job.grounding_violation && !brainRes.unanswered_question) {
+        store.recordHostFaqHit(transcript);
+      }
+      store.recordTurnStats(job.answer_language, level);
+
+      // Apply RSVP patch deterministically (require explicit Haan confirm in guest UI when newly capturing RSVP)
       if (brainRes.rsvp_patch && Object.keys(brainRes.rsvp_patch).length > 0) {
-        const mergeRes = store.applyRsvpPatch(input.gid, brainRes.rsvp_patch);
+        const mergeRes = store.applyRsvpPatch(input.gid, brainRes.rsvp_patch, {
+          confirmed: false,
+          householdCode: input.householdCode,
+        });
         job.rsvp = mergeRes.rsvp;
         job.rsvp_warnings = mergeRes.warnings;
-        if (mergeRes.becameCompleteFirstTime) {
-          flags.trackRsvpCompleted(input.gid);
-        }
+        job.rsvp_needs_confirmation =
+          mergeRes.rsvp.attending !== false &&
+          (mergeRes.rsvp.headcount !== null ||
+            mergeRes.rsvp.headcount_range !== null ||
+            mergeRes.rsvp.functions.length > 0);
       } else {
         job.rsvp = store.getRsvp(input.gid);
       }
 
-      // Record unanswered question if applicable
       if (brainRes.unanswered_question) {
         store.addUnanswered(
           input.gid,
@@ -201,7 +228,7 @@ export class TurnWorker {
         );
       }
 
-      // Stage 3: TTS (only at level == 0 AND voiceReplyEnabled AND supported language)
+      // Stage 3: TTS
       const normalizedLang = normalizeBcp47(job.answer_language);
       if (
         level === 0 &&
@@ -219,7 +246,6 @@ export class TurnWorker {
             job.audio_base64 = ttsRes.audioBase64;
             job.audio_mime = ttsRes.mimeType;
           } catch (ttsErr) {
-            // If TTS hits quota or fails, gracefully return text answer without crashing turn
             job.error =
               ttsErr instanceof Error ? `Voice skipped: ${ttsErr.message}` : "Voice skipped";
           }

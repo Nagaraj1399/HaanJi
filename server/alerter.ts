@@ -20,6 +20,8 @@ export interface AlerterSnapshot {
   events: AlertEvent[];
   workflows: ApprovalWorkflowRun[];
   active_leader_id: string;
+  dead_webhook_mode: boolean;
+  webhook_retries_log: Array<{ ts: string; target: string; status: string; attempt: number }>;
 }
 
 export class AlerterStateMachine {
@@ -32,7 +34,53 @@ export class AlerterStateMachine {
   private leaderId = "api-replica-1";
   private leaderLeaseUntilMs = Date.now() + 30_000;
   private timer: NodeJS.Timeout | null = null;
-  private webhookRetriesLog: Array<{ ts: string; status: string; attempt: number }> = [];
+  private deadWebhookMode = false;
+  private webhookRetriesLog: Array<{ ts: string; target: string; status: string; attempt: number }> = [];
+
+  setDeadWebhookMode(enabled: boolean): void {
+    this.deadWebhookMode = enabled;
+  }
+
+  isDeadWebhookMode(): boolean {
+    return this.deadWebhookMode;
+  }
+
+  async dispatchWebhook(evt: AlertEvent): Promise<{ delivered: boolean; attempts: number }> {
+    const targetUrl = this.deadWebhookMode
+      ? "http://127.0.0.1:59999/dead-nudgebee-hook"
+      : process.env.NUDGEBEE_EVENT_WEBHOOK_URL;
+    if (!targetUrl) return { delivered: false, attempts: 0 };
+
+    let attempts = 0;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      attempts = attempt;
+      try {
+        const res = await fetch(targetUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(evt),
+          signal: AbortSignal.timeout(1500),
+        });
+        this.webhookRetriesLog.unshift({
+          ts: new Date().toISOString(),
+          target: targetUrl,
+          status: `HTTP ${res.status}`,
+          attempt,
+        });
+        if (res.ok) return { delivered: true, attempts };
+      } catch (err) {
+        this.webhookRetriesLog.unshift({
+          ts: new Date().toISOString(),
+          target: targetUrl,
+          status: err instanceof Error ? err.message : "Network error",
+          attempt,
+        });
+      }
+      if (this.webhookRetriesLog.length > 20) this.webhookRetriesLog.length = 20;
+      await new Promise((r) => setTimeout(r, 150 * attempt));
+    }
+    return { delivered: false, attempts };
+  }
 
   shouldFire(m: AlerterTickInput): boolean {
     return (
@@ -64,6 +112,7 @@ export class AlerterStateMachine {
         this.events.unshift(evt);
         if (!skipWorkflowCreation) {
           this.openDegradeWorkflow(this.fingerprint, m, nowMs);
+          void this.dispatchWebhook(evt);
         }
         return evt;
       }
@@ -282,6 +331,8 @@ export class AlerterStateMachine {
       events: [...this.events],
       workflows: [...this.workflows],
       active_leader_id: this.leaderId,
+      dead_webhook_mode: this.deadWebhookMode,
+      webhook_retries_log: [...this.webhookRetriesLog],
     };
   }
 

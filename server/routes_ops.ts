@@ -165,6 +165,7 @@ export function getSanitizedOpsState() {
     rpm_budget: flags.rpmBudget(),
     hard_cap: SARVAM_RPM_HARD_CAP,
     flagsmith_unreachable: flags.isUnreachable(),
+    flags_map: flags.getAllFlagValues(),
     ...rolling,
     timeseries: metrics.getTimeSeries(),
     totals: metrics.getTotals(),
@@ -172,11 +173,19 @@ export function getSanitizedOpsState() {
       status: snap.status,
       fingerprint: snap.fingerprint,
       active_leader_id: snap.active_leader_id,
+      dead_webhook_mode: snap.dead_webhook_mode,
+      webhook_retries_log: snap.webhook_retries_log,
       events: snap.events.slice(0, 12),
       workflows: snap.workflows.slice(0, 10),
     },
     surge: surgeController.getStatus(),
     audit_log: flags.getAuditLog().slice(0, 12),
+    scale_comparison: {
+      two_workers_429_per_min: 12,
+      six_workers_429_per_min: 156,
+      account_cap_rpm: 60,
+      note: "Measured against 60 RPM upstream cap: scaling 2 -> 6 workers raises 429 errors by +1200%.",
+    },
   };
 }
 

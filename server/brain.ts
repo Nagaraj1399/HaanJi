@@ -101,7 +101,7 @@ function buildCardAllowlist(card: WeddingCard): {
     allowedVenueTokens.add(lower);
     for (const part of lower.split(/[,\-–/]+/)) {
       const trimmed = part.trim();
-      if (trimmed.length >= 4) allowedVenueTokens.add(trimmed);
+      if (trimmed.length >= 3) allowedVenueTokens.add(trimmed);
     }
   };
   for (const f of card.functions) {
@@ -116,6 +116,28 @@ function buildCardAllowlist(card: WeddingCard): {
   addTokens("Main Porch");
 
   return { allowedTimes, allowedVenueTokens };
+}
+
+export function detectMatchedFunction(
+  text: string,
+  card: WeddingCard
+): FunctionId | null {
+  const lower = text.toLowerCase();
+  for (const f of card.functions) {
+    if (
+      lower.includes(f.id) ||
+      lower.includes(f.name.toLowerCase()) ||
+      lower.includes(f.venue.toLowerCase().split(",")[0]) ||
+      (f.venue_kn && text.includes(f.venue_kn.split(",")[0])) ||
+      (f.venue_ta && text.includes(f.venue_ta.split(",")[0])) ||
+      (f.name_hi && text.includes(f.name_hi)) ||
+      (f.name_kn && text.includes(f.name_kn)) ||
+      (f.name_ta && text.includes(f.name_ta))
+    ) {
+      return f.id;
+    }
+  }
+  return null;
 }
 
 /**
@@ -162,7 +184,22 @@ export function postCheck(
     }
   }
 
-  // 2. Check venue phrases
+  // 2. Check venue phrases (Latin + Kannada + Tamil ungrounded traps)
+  const extraIndicSuspects = ["ತಾಜ್ ವೆಸ್ಟ್ ಎಂಡ್", "தாஜ் வெஸ்ட் எண்ட்", "ಪ್ಯಾಲೇಸ್ ಗ್ರೌಂಡ್ಸ್", "பேலஸ் கிரவுண்ட்ஸ்"];
+  for (const suspect of extraIndicSuspects) {
+    if (answer.includes(suspect)) {
+      metrics.recordGroundingViolation();
+      return {
+        ...result,
+        intent: result.intent === "mixed" ? "mixed" : "unanswerable",
+        answer_text: getSafePhrase(language),
+        unanswered_question: originalQuestion,
+        grounding_violation: true,
+        violation_reason: `Ungrounded Indic venue "${suspect}" not found in wedding card.`,
+      };
+    }
+  }
+
   for (const pat of SUSPECT_VENUE_PATTERNS) {
     pat.lastIndex = 0;
     let m: RegExpExecArray | null;
@@ -187,6 +224,7 @@ export function postCheck(
 
   return {
     ...result,
+    matched_function_id: result.matched_function_id ?? detectMatchedFunction(answer, card),
     grounding_violation: false,
   };
 }

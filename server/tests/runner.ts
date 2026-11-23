@@ -128,7 +128,7 @@ export async function runTrackAUnitTests(): Promise<TestCaseResult[]> {
   );
 
   results.push(
-    await runCase("A-U4", suite, "Grounding guard: rejects 'Sangeet 8 PM'; accepts 7:30 PM, 7.30 pm, शाम 7:30", () => {
+    await runCase("A-U4", suite, "Grounding guard: rejects ungrounded time & Kannada/Tamil trap venues; accepts valid card venues", () => {
       const card = loadWeddingCard("wedding.test.yaml");
       const bad = postCheck(
         {
@@ -148,11 +148,36 @@ export async function runTrackAUnitTests(): Promise<TestCaseResult[]> {
       assert.equal(bad.grounding_violation, true);
       assert.ok(bad.unanswered_question);
 
-      for (const variant of ["7:30 PM", "7.30 pm", "शाम 7:30"]) {
+      for (const trap of ["ತಾಜ್ ವೆಸ್ಟ್ ಎಂಡ್ ನಲ್ಲಿ ನಡೆಯಲಿದೆ.", "தாஜ் வெஸ்ட் எண்ட் இல் நடைபெறும்."]) {
+        const trapped = postCheck(
+          {
+            intent: "faq",
+            answer_text: trap,
+            answer_language: "kn",
+            rsvp_patch: {},
+            rsvp_complete: false,
+            followup_question: null,
+            unanswered_question: null,
+            confidence: 0.9,
+          },
+          "Where is the wedding?",
+          "kn",
+          card
+        );
+        assert.equal(trapped.grounding_violation, true, `Trap venue ${trap} should be blocked`);
+      }
+
+      for (const variant of [
+        "7:30 PM at Lotus Courtyard, Tamarind Tree",
+        "7.30 pm at Tamarind Tree",
+        "शाम 7:30 बजे Tamarind Tree में",
+        "ಸಂಜೆ 7:30 ಕ್ಕೆ ಟ್ಯಾಮರಿಂಡ್ ಟ್ರೀ ನಲ್ಲಿ",
+        "இரவு 7:30 மணிக்கு டேமரிண்ட் ட்ரீ இல்",
+      ]) {
         const ok = postCheck(
           {
             intent: "faq",
-            answer_text: `Sangeet starts at ${variant} at Lotus Courtyard.`,
+            answer_text: `Sangeet: ${variant}.`,
             answer_language: "en",
             rsvp_patch: {},
             rsvp_complete: false,
@@ -166,7 +191,7 @@ export async function runTrackAUnitTests(): Promise<TestCaseResult[]> {
         );
         assert.equal(ok.grounding_violation, false, `Variant ${variant} should pass grounding`);
       }
-      return "Blocked ungrounded '8 PM'; accepted '7:30 PM', '7.30 pm', and 'शाम 7:30'.";
+      return "Blocked ungrounded '8 PM' and Kannada/Tamil trap venues; accepted Latin, Devanagari, Kannada & Tamil card venues.";
     })
   );
 
@@ -345,6 +370,52 @@ export async function runTrackAUnitTests(): Promise<TestCaseResult[]> {
         (e: unknown) => (e as { status?: number })?.status === 413
       );
       return "Rejected 2.5 MB and 34s clips with status 413 pre-queue.";
+    })
+  );
+
+  results.push(
+    await runCase("A-U10", suite, "2-step RSVP confirmation & rel_elder_mode_default segment trait", () => {
+      const pending = mergeRsvp(
+        null,
+        "g-confirm-1",
+        { attending: true, headcount: 4, functions: ["shaadi"], diet: { jain: 2 } },
+        { confirmed: false, householdCode: "IYER01", householdName: "Iyer Family" }
+      );
+      assert.equal(pending.rsvp.confirmed, false);
+      assert.equal(pending.rsvp.rsvp_complete, false);
+
+      const confirmed = mergeRsvp(pending.rsvp, "g-confirm-1", {}, { confirmed: true });
+      assert.equal(confirmed.rsvp.confirmed, true);
+      assert.equal(confirmed.rsvp.rsvp_complete, true);
+      assert.equal(confirmed.becameCompleteFirstTime, true);
+
+      const f = new FlagsClient();
+      assert.equal(f.elderModeDefault({ age_band: "standard" }), false);
+      assert.equal(f.elderModeDefault({ age_band: "elder" }), true);
+      f.setUnreachable(true);
+      assert.equal(f.elderModeDefault({ age_band: "elder" }), false);
+      return "Pending RSVP held incomplete until confirm; age_band='elder' enabled elder mode unless Flagsmith unreachable.";
+    })
+  );
+
+  results.push(
+    await runCase("A-U11", suite, "Unsupported TTS language (outside 11-lang set) returns text-only with 0 TTS calls", async () => {
+      const w = new TurnWorker();
+      const { flags } = await import("../flags.ts");
+      const { metrics } = await import("../metrics.ts");
+      flags.adminSetDegradation(0, 40, "test", "lang guard test");
+      const beforeTts = metrics.getTotals().sarvam["tts|200"] || 0;
+      const job = w.enqueueTurn({
+        gid: "test-fr",
+        text: "When is Sangeet?",
+        languageHint: "fr-FR",
+        executionMode: "replay",
+      });
+      await new Promise((r) => setTimeout(r, 30));
+      const res = w.getJob(job.job_id);
+      assert.equal(res?.status, "done");
+      assert.equal((metrics.getTotals().sarvam["tts|200"] || 0) - beforeTts, 0);
+      return "Language fr-FR skipped TTS (0 calls) while completing text answer.";
     })
   );
 
@@ -853,6 +924,20 @@ export async function runCausalLoopProof(): Promise<{
       const errs6Workers = simulateWorkers(6, 12); // 6 * 12 * 3 = 216 calls -> 156 429s
       assert.ok(errs6Workers > errs2Workers);
       return `Measured 429s/min against 60 RPM upstream cap: 2 workers = ${errs2Workers} 429s vs 6 workers = ${errs6Workers} 429s (+${Math.round(((errs6Workers - errs2Workers) / errs2Workers) * 100)}% worse).`;
+    })
+  );
+
+  negativeTests.push(
+    await runCase("B-N4", "Negative & Thesis", "Dead webhook fault switch logs 3 retries without crashing app", async () => {
+      const aDead = new AlerterStateMachine();
+      aDead.setDeadWebhookMode(true);
+      const evt = aDead.tick({ rate429_pct_60s: 32, rpm_60s: 88, p95_chat_60s: 0.4, queue_depth: 0 }, 1000, true)!;
+      assert.ok(evt);
+      const dispatch = await aDead.dispatchWebhook(evt);
+      assert.equal(dispatch.delivered, false);
+      assert.equal(dispatch.attempts, 3);
+      assert.equal(aDead.getSnapshot().webhook_retries_log.length, 3);
+      return `Dead webhook logged 3 retry attempts to dead-letter log while alerter kept functioning.`;
     })
   );
 

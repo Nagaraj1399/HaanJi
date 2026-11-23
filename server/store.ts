@@ -4,6 +4,7 @@ import {
   FunctionId,
   GuestRsvp,
   HostAnnouncement,
+  HouseholdRecord,
   RsvpPatch,
   UnansweredQuestion,
   WeddingCard,
@@ -76,10 +77,13 @@ export function validateRsvpPatch(
 export function mergeRsvp(
   existing: GuestRsvp | null,
   gid: string,
-  patch: RsvpPatch
+  patch: RsvpPatch,
+  options?: { confirmed?: boolean; householdCode?: string | null; householdName?: string | null }
 ): { rsvp: GuestRsvp; becameCompleteFirstTime: boolean; warnings: string[] } {
   const base: GuestRsvp = existing ?? {
     gid,
+    household_code: options?.householdCode ?? null,
+    household_name: options?.householdName ?? null,
     attending: null,
     headcount: null,
     headcount_range: null,
@@ -87,6 +91,7 @@ export function mergeRsvp(
     diet: { veg: 0, jain: 0, nonveg: 0, no_onion_garlic: 0 },
     arrival: null,
     needs_room: null,
+    confirmed: false,
     rsvp_complete: false,
     warnings: [],
     updated_at: new Date().toISOString(),
@@ -108,7 +113,7 @@ export function mergeRsvp(
   let nextRange = base.headcount_range;
   if (patch.headcount !== undefined && patch.headcount !== null) {
     nextHeadcount = patch.headcount;
-    nextRange = null; // confirmed headcount supersedes range
+    nextRange = null;
   } else if (patch.headcount_range !== undefined && patch.headcount_range !== null) {
     nextRange = patch.headcount_range;
   }
@@ -134,14 +139,21 @@ export function mergeRsvp(
       ? patch.needs_room
       : base.needs_room;
 
-  const isComplete =
+  const nextConfirmed =
+    options?.confirmed !== undefined ? options.confirmed : base.confirmed;
+
+  const hasRequiredFields =
     nextAttending === false ||
     (nextHeadcount !== null &&
       nextHeadcount > 0 &&
       nextFunctions.length > 0);
 
+  const isComplete = hasRequiredFields && (options?.confirmed === false ? false : true);
+
   const merged: GuestRsvp = {
     gid,
+    household_code: options?.householdCode ?? base.household_code ?? null,
+    household_name: options?.householdName ?? base.household_name ?? null,
     attending: nextAttending,
     headcount: nextAttending === false ? 0 : nextHeadcount,
     headcount_range: nextAttending === false ? null : nextRange,
@@ -149,6 +161,7 @@ export function mergeRsvp(
     diet: nextDiet,
     arrival: nextArrival,
     needs_room: nextNeedsRoom,
+    confirmed: nextConfirmed,
     rsvp_complete: isComplete,
     warnings: validation.warnings,
     updated_at: new Date().toISOString(),
@@ -241,8 +254,7 @@ export function computeCatererSummary(rsvps: GuestRsvp[]): CatererSummary {
       needsRoomCount += 1;
     }
 
-    const targetFns: FunctionId[] =
-      r.functions.length > 0 ? r.functions : [];
+    const targetFns: FunctionId[] = r.functions.length > 0 ? r.functions : [];
 
     if (r.headcount !== null && r.headcount > 0) {
       for (const fn of targetFns) {
@@ -283,18 +295,70 @@ export function computeCatererSummary(rsvps: GuestRsvp[]): CatererSummary {
 export class WeddingStore {
   private card: WeddingCard;
   private rsvps = new Map<string, GuestRsvp>();
+  private households = new Map<string, HouseholdRecord>();
   private unanswered: UnansweredQuestion[] = [];
   private announcements: HostAnnouncement[] = [];
+  private questionsAnsweredCount = 0;
+  private languagesHeard = new Set<string>(["hinglish", "en-IN"]);
+  private guestsServedDuringSurge = 0;
 
   constructor() {
     this.card = loadWeddingCard("wedding.yaml");
-    this.seedInitialDemoRsvps();
+    this.seedInitialDemoData();
   }
 
-  private seedInitialDemoRsvps(): void {
-    const seeds: Array<{ gid: string; patch: RsvpPatch }> = [
+  private seedInitialDemoData(): void {
+    const demoHouseholds: HouseholdRecord[] = [
+      {
+        code: "IYER01",
+        family_name: "Iyer Family",
+        preferred_language: "ta",
+        age_band: "elder",
+        invited_functions: ["mehendi", "sangeet", "shaadi", "reception"],
+        gid: "seed-iyer-chn-3",
+      },
+      {
+        code: "SHARMA02",
+        family_name: "Sharma Family (Delhi)",
+        preferred_language: "hi",
+        age_band: "standard",
+        invited_functions: ["mehendi", "sangeet", "shaadi", "reception"],
+        gid: "seed-sharma-blr-1",
+      },
+      {
+        code: "REDDY03",
+        family_name: "Reddy Family (Hyderabad)",
+        preferred_language: "en",
+        age_band: "standard",
+        invited_functions: ["sangeet", "shaadi", "reception"],
+        gid: "seed-reddy-hyd-2",
+      },
+      {
+        code: "PATEL04",
+        family_name: "Patel Family",
+        preferred_language: "hinglish",
+        age_band: "standard",
+        invited_functions: ["sangeet", "shaadi"],
+        gid: "seed-patel-range-4",
+      },
+      {
+        code: "RAO05",
+        family_name: "Rao Family (Mysuru)",
+        preferred_language: "kn",
+        age_band: "elder",
+        invited_functions: ["shaadi", "reception"],
+        gid: null,
+      },
+    ];
+    for (const h of demoHouseholds) {
+      this.households.set(h.code, h);
+    }
+
+    const seeds: Array<{ gid: string; code: string; name: string; patch: RsvpPatch }> = [
       {
         gid: "seed-sharma-blr-1",
+        code: "SHARMA02",
+        name: "Sharma Family (Delhi)",
         patch: {
           attending: true,
           headcount: 6,
@@ -305,6 +369,8 @@ export class WeddingStore {
       },
       {
         gid: "seed-reddy-hyd-2",
+        code: "REDDY03",
+        name: "Reddy Family (Hyderabad)",
         patch: {
           attending: true,
           headcount: 4,
@@ -315,6 +381,8 @@ export class WeddingStore {
       },
       {
         gid: "seed-iyer-chn-3",
+        code: "IYER01",
+        name: "Iyer Family",
         patch: {
           attending: true,
           headcount: 3,
@@ -325,6 +393,8 @@ export class WeddingStore {
       },
       {
         gid: "seed-patel-range-4",
+        code: "PATEL04",
+        name: "Patel Family",
         patch: {
           attending: true,
           headcount_range: [3, 5],
@@ -335,13 +405,44 @@ export class WeddingStore {
       },
     ];
     for (const s of seeds) {
-      const { rsvp } = mergeRsvp(null, s.gid, s.patch);
+      const { rsvp } = mergeRsvp(null, s.gid, s.patch, {
+        confirmed: true,
+        householdCode: s.code,
+        householdName: s.name,
+      });
       this.rsvps.set(s.gid, rsvp);
     }
   }
 
   getCard(): WeddingCard {
     return this.card;
+  }
+
+  getHousehold(code: string): HouseholdRecord | null {
+    return this.households.get(code.toUpperCase()) ?? null;
+  }
+
+  getAllHouseholds(): Array<HouseholdRecord & { rsvp_status: "confirmed" | "tentative" | "pending"; headcount: number | null }> {
+    return Array.from(this.households.values()).map((h) => {
+      const r = h.gid ? this.rsvps.get(h.gid) : undefined;
+      const status = r
+        ? r.rsvp_complete
+          ? "confirmed"
+          : "tentative"
+        : "pending";
+      return {
+        ...h,
+        rsvp_status: status,
+        headcount: r?.headcount ?? null,
+      };
+    });
+  }
+
+  linkHouseholdToGid(code: string, gid: string): HouseholdRecord | null {
+    const h = this.households.get(code.toUpperCase());
+    if (!h) return null;
+    h.gid = gid;
+    return h;
   }
 
   getRsvp(gid: string): GuestRsvp | null {
@@ -354,12 +455,26 @@ export class WeddingStore {
 
   applyRsvpPatch(
     gid: string,
-    patch: RsvpPatch
+    patch: RsvpPatch,
+    options?: { confirmed?: boolean; householdCode?: string | null }
   ): { rsvp: GuestRsvp; becameCompleteFirstTime: boolean; warnings: string[] } {
     const existing = this.rsvps.get(gid) ?? null;
-    const res = mergeRsvp(existing, gid, patch);
+    const h = options?.householdCode ? this.getHousehold(options.householdCode) : null;
+    const res = mergeRsvp(existing, gid, patch, {
+      confirmed: options?.confirmed,
+      householdCode: h?.code ?? existing?.household_code,
+      householdName: h?.family_name ?? existing?.household_name,
+    });
     this.rsvps.set(gid, res.rsvp);
     return res;
+  }
+
+  confirmRsvp(gid: string): { rsvp: GuestRsvp; becameCompleteFirstTime: boolean } | null {
+    const existing = this.rsvps.get(gid);
+    if (!existing) return null;
+    const res = mergeRsvp(existing, gid, {}, { confirmed: true });
+    this.rsvps.set(gid, res.rsvp);
+    return { rsvp: res.rsvp, becameCompleteFirstTime: res.becameCompleteFirstTime };
   }
 
   getCatererSummary(): CatererSummary {
@@ -380,6 +495,7 @@ export class WeddingStore {
       reason,
       created_at: new Date().toISOString(),
       resolved: false,
+      answered_after_adding: 0,
     };
     this.unanswered.unshift(entry);
     if (this.unanswered.length > 100) this.unanswered.length = 100;
@@ -395,8 +511,39 @@ export class WeddingStore {
     if (!item) return null;
     item.resolved = true;
     item.added_answer = answer;
-    this.card.faqs.push({ q: item.question, a: answer });
+    this.card.faqs.push({ q: item.question, a: answer, added_by_host: true });
     return item;
+  }
+
+  recordHostFaqHit(questionText: string): void {
+    const lower = questionText.toLowerCase();
+    for (const uq of this.unanswered) {
+      if (!uq.resolved) continue;
+      const words = uq.question.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+      if (words.some((w) => lower.includes(w))) {
+        uq.answered_after_adding += 1;
+      }
+    }
+  }
+
+  recordTurnStats(language: string, level: number): void {
+    this.questionsAnsweredCount += 1;
+    if (language) {
+      this.languagesHeard.add(language.toLowerCase().split("-")[0]);
+    }
+    if (level > 0) {
+      this.guestsServedDuringSurge += 1;
+    }
+  }
+
+  getJudgeCounters() {
+    const summary = this.getCatererSummary();
+    return {
+      questions_answered: this.questionsAnsweredCount,
+      confirmed_rsvps: summary.confirmed_parties,
+      languages_heard: Array.from(this.languagesHeard),
+      guests_served_during_surge: this.guestsServedDuringSurge,
+    };
   }
 
   addAnnouncement(english: string, translations: Record<string, string>): HostAnnouncement {

@@ -6,8 +6,10 @@ export interface FlagsState {
   ops_degradation_level: DegradationLevel;
   sarvam_rpm_budget: number;
   rel_voice_reply: Record<string, boolean>;
-  llm_config: {
+  rel_elder_mode_default: boolean;
+  cfg_llm: {
     model: string;
+    prompt_version: string;
     temperature: number;
     max_tokens: number;
   };
@@ -23,8 +25,10 @@ const CONTRACT_DEFAULTS: FlagsState = {
     "kn-IN": true,
     "ta-IN": true,
   },
-  llm_config: {
+  rel_elder_mode_default: false,
+  cfg_llm: {
     model: "gemini-4-hydrogen",
+    prompt_version: "v2.1-grounded",
     temperature: 0.2,
     max_tokens: 450,
   },
@@ -44,8 +48,10 @@ export class FlagsClient {
   private state: FlagsState = structuredClone(CONTRACT_DEFAULTS);
   private exposures = new Map<string, PersonaArm>();
   private conversions = new Set<string>();
+  private abandoned = new Set<string>();
   private armExposures: Record<PersonaArm, number> = { formal: 0, warm: 0 };
   private armConversions: Record<PersonaArm, number> = { formal: 0, warm: 0 };
+  private armAbandoned: Record<PersonaArm, number> = { formal: 0, warm: 0 };
   private auditLog: FlagAuditEntry[] = [];
   private featureIdCache = new Map<string, number>();
 
@@ -91,16 +97,25 @@ export class FlagsClient {
     this.state.rel_voice_reply[languageCode] = enabled;
   }
 
-  llmConfig(): FlagsState["llm_config"] {
-    if (this.state.unreachable) return CONTRACT_DEFAULTS.llm_config;
-    return this.state.llm_config;
+  elderModeDefault(traits?: { age_band?: string }): boolean {
+    if (this.state.unreachable) return false;
+    if (traits?.age_band === "elder") return true;
+    return this.state.rel_elder_mode_default;
+  }
+
+  setElderModeDefault(enabled: boolean): void {
+    this.state.rel_elder_mode_default = enabled;
+  }
+
+  llmConfig(): FlagsState["cfg_llm"] {
+    if (this.state.unreachable) return CONTRACT_DEFAULTS.cfg_llm;
+    return this.state.cfg_llm;
   }
 
   persona(gid: string, _traits?: Record<string, string>): PersonaArm {
     if (this.state.unreachable) {
       return "formal";
     }
-    // Load-test gids MUST NEVER trigger experiment exposure
     if (gid.startsWith("load-")) {
       return "formal";
     }
@@ -108,7 +123,6 @@ export class FlagsClient {
     if (existing) {
       return existing;
     }
-    // Deterministic 50/50 hash split per gid
     const bucket = fnv1aHash(`exp_voice_persona:${gid}`) % 2;
     const arm: PersonaArm = bucket === 0 ? "formal" : "warm";
     this.exposures.set(gid, arm);
@@ -120,11 +134,9 @@ export class FlagsClient {
     if (this.state.unreachable || gid.startsWith("load-")) {
       return false;
     }
-    // Track at most once per gid
     if (this.conversions.has(gid)) {
       return false;
     }
-    // Ensure exposure exists for same gid
     const arm = this.exposures.get(gid) ?? this.persona(gid);
     this.conversions.add(gid);
     this.armConversions[arm] += 1;
@@ -132,11 +144,31 @@ export class FlagsClient {
     return true;
   }
 
+  trackRsvpAbandoned(gid: string): boolean {
+    if (this.state.unreachable || gid.startsWith("load-")) {
+      return false;
+    }
+    if (this.abandoned.has(gid) || this.conversions.has(gid)) {
+      return false;
+    }
+    const arm = this.exposures.get(gid) ?? this.persona(gid);
+    this.abandoned.add(gid);
+    this.armAbandoned[arm] += 1;
+    return true;
+  }
+
   getExperimentSummary(): {
     arms: Record<
       PersonaArm,
-      { exposures: number; completions: number; conversion_rate_pct: number }
+      {
+        exposures: number;
+        completions: number;
+        abandoned: number;
+        conversion_rate_pct: number;
+      }
     >;
+    total_exposures: number;
+    honest_reading: string;
     flagsmith_note: string;
   } {
     const calc = (arm: PersonaArm) => {
@@ -145,16 +177,42 @@ export class FlagsClient {
       return {
         exposures: exp,
         completions: conv,
+        abandoned: this.armAbandoned[arm],
         conversion_rate_pct: exp > 0 ? Number(((conv / exp) * 100).toFixed(1)) : 0,
       };
     };
+    const totalExp = this.armExposures.formal + this.armExposures.warm;
+    const honestReading =
+      totalExp < 100
+        ? `Inconclusive at n=${totalExp}. Reaching 95% confidence for a 10% lift typically requires ~380 exposures per arm.`
+        : `Sample size n=${totalExp} collected; inspect Flagsmith Bayesian credible interval before rolling out.`;
     return {
       arms: {
         formal: calc("formal"),
         warm: calc("warm"),
       },
+      total_exposures: totalExp,
+      honest_reading: honestReading,
       flagsmith_note:
-        "Local Redis-equivalent counters; Flagsmith Bayesian engine is the production source of truth.",
+        process.env.FLAGSMITH_SERVER_KEY
+          ? "Connected to Flagsmith environment."
+          : "Local flag evaluation store active; Flagsmith Bayesian engine is the production source of truth when FLAGSMITH_SERVER_KEY is configured.",
+    };
+  }
+
+  getAllFlagValues() {
+    return {
+      exp_voice_persona: "50/50 multivariate (formal | warm)",
+      ops_degradation_level: this.degradationLevel(),
+      ops_sarvam_rpm_budget: this.rpmBudget(),
+      rel_voice_reply: this.state.rel_voice_reply,
+      cfg_llm: this.llmConfig(),
+      rel_elder_mode_default: this.state.rel_elder_mode_default,
+      source: this.state.unreachable
+        ? "Fallback Defaults (Outage Active)"
+        : process.env.FLAGSMITH_SERVER_KEY
+          ? "Flagsmith Cloud"
+          : "Local Flag Store",
     };
   }
 
@@ -173,10 +231,9 @@ export class FlagsClient {
         throw new Error(`Invalid rpm_budget: ${rpmBudget}. Must be between 5 and 55.`);
       }
     }
-    // Simulate caching Flagsmith feature ID lookup after first call
     if (!this.featureIdCache.has("ops_degradation_level")) {
       this.featureIdCache.set("ops_degradation_level", 104821);
-      this.featureIdCache.set("sarvam_rpm_budget", 104822);
+      this.featureIdCache.set("ops_sarvam_rpm_budget", 104822);
     }
 
     this.state.ops_degradation_level = level as DegradationLevel;
@@ -216,8 +273,10 @@ export class FlagsClient {
     this.state = structuredClone(CONTRACT_DEFAULTS);
     this.exposures.clear();
     this.conversions.clear();
+    this.abandoned.clear();
     this.armExposures = { formal: 0, warm: 0 };
     this.armConversions = { formal: 0, warm: 0 };
+    this.armAbandoned = { formal: 0, warm: 0 };
     this.auditLog = [];
     this.featureIdCache.clear();
     metrics.setDegradationLevel(0);

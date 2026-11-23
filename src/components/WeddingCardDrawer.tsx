@@ -43,24 +43,24 @@ export function WeddingCardDrawer({ open, onClose, card }: WeddingCardDrawerProp
 
   return (
     <div
-      className="fixed inset-0 z-50 flex justify-end bg-zinc-950/40 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex justify-end bg-[#1F1A17]/45 backdrop-blur-[2px]"
       role="dialog"
       aria-modal="true"
       aria-label="Official Wedding Card Reference"
     >
-      <div className="h-full w-full max-w-xl overflow-y-auto bg-white border-l border-zinc-200 p-6 sm:p-8">
-        <div className="flex items-start justify-between gap-4 pb-6 border-b border-zinc-200">
+      <div className="h-full w-full max-w-xl overflow-y-auto bg-[#FBF7F0] border-l border-[#C9A96E]/50 p-6 sm:p-8 text-[#1F1A17]">
+        <div className="flex items-start justify-between gap-4 pb-6 border-b border-[#C9A96E]/40">
           <div>
-            <p className="text-xs font-medium text-amber-800">{card.wedding.demo_notice}</p>
-            <h2 className="mt-1 text-2xl font-semibold text-zinc-900">{card.wedding.title}</h2>
-            <p className="mt-1 text-sm text-zinc-600">
+            <p className="text-xs font-medium text-[#6B1E2E]">{card.wedding.demo_notice}</p>
+            <h2 className="mt-1 font-display text-2xl font-semibold text-[#1F1A17]">{card.wedding.title}</h2>
+            <p className="mt-1 text-sm text-[#5C4F46]">
               {card.wedding.subtitle} · {card.wedding.dates}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 transition-colors"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border border-[#C9A96E]/60 bg-white text-[#1F1A17] hover:bg-[#F3EADF] transition-colors"
             aria-label="Close wedding card"
           >
             <X className="w-5 h-5" />
@@ -69,31 +69,31 @@ export function WeddingCardDrawer({ open, onClose, card }: WeddingCardDrawerProp
 
         <div className="mt-6 space-y-8">
           <section>
-            <h3 className="text-base font-semibold text-zinc-900 mb-3">01. Functions & Venues</h3>
-            <div className="divide-y divide-zinc-200 border border-zinc-200 rounded-xl overflow-hidden">
+            <h3 className="font-display text-base font-semibold text-[#6B1E2E] mb-3">01. Functions &amp; Venues</h3>
+            <div className="divide-y divide-[#C9A96E]/35 border border-[#C9A96E]/45 rounded-2xl overflow-hidden bg-white">
               {card.functions.map((fn) => (
-                <div key={fn.id} className="p-4 bg-white">
+                <div key={fn.id} className="p-4">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="font-semibold text-zinc-900">{fn.name}</span>
-                    <span className="font-mono text-xs tabular-nums text-amber-800">
+                    <span className="font-semibold text-[#1F1A17]">{fn.name}</span>
+                    <span className="font-mono text-xs tabular-nums text-[#6B1E2E]">
                       {fn.date} · {fn.time}
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-zinc-700">{fn.venue}</p>
+                  <p className="mt-1 text-sm text-[#3E352F]">{fn.venue}</p>
                   {(fn.venue_kn || fn.venue_ta) && (
-                    <p className="mt-1 text-xs text-zinc-500">
+                    <p className="mt-1 text-xs text-[#5C4F46]">
                       {fn.venue_kn} · {fn.venue_ta}
                     </p>
                   )}
-                  <p className="mt-2 text-xs text-zinc-600">
-                    Dress code: <span className="text-zinc-900">{fn.dress_code}</span>
+                  <p className="mt-2 text-xs text-[#5C4F46]">
+                    Dress code: <span className="text-[#1F1A17]">{fn.dress_code}</span>
                   </p>
                   {fn.maps_url && (
                     <a
                       href={fn.maps_url}
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-amber-800 hover:underline"
+                      className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[#6B1E2E] hover:underline"
                     >
                       <MapPin className="w-3.5 h-3.5" />
                       Open venue map
@@ -105,20 +105,20 @@ export function WeddingCardDrawer({ open, onClose, card }: WeddingCardDrawerProp
           </section>
 
           <section>
-            <h3 className="text-base font-semibold text-zinc-900 mb-3">02. Parking, Shuttles & Desk</h3>
-            <div className="space-y-3 text-sm text-zinc-700 bg-[#FAF9F6] border border-zinc-200 rounded-xl p-4">
+            <h3 className="font-display text-base font-semibold text-[#6B1E2E] mb-3">02. Parking, Shuttles &amp; Desk</h3>
+            <div className="space-y-3 text-sm text-[#3E352F] bg-white border border-[#C9A96E]/45 rounded-2xl p-4">
               <p>
-                <span className="font-medium text-zinc-900">Parking: </span>
+                <span className="font-medium text-[#1F1A17]">Parking: </span>
                 {card.logistics.parking}
               </p>
               <p>
-                <span className="font-medium text-zinc-900">Shuttle: </span>
+                <span className="font-medium text-[#1F1A17]">Shuttle: </span>
                 {card.logistics.shuttle}
               </p>
-              <div className="pt-2 border-t border-zinc-200 space-y-1">
+              <div className="pt-2 border-t border-[#C9A96E]/35 space-y-1">
                 {card.logistics.contacts.map((c) => (
-                  <p key={c.role} className="text-xs text-zinc-600">
-                    <span className="font-medium text-zinc-900">{c.role}:</span> {c.name} — {c.note}
+                  <p key={c.role} className="text-xs text-[#5C4F46]">
+                    <span className="font-medium text-[#1F1A17]">{c.role}:</span> {c.name}, {c.note}
                   </p>
                 ))}
               </div>

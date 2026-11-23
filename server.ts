@@ -1,11 +1,17 @@
 import "dotenv/config";
+import crypto from "node:crypto";
 import path from "node:path";
 import fs from "node:fs";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import { alerter } from "./server/alerter.ts";
 import { translateAnnouncement } from "./server/brain.ts";
-import { HOST_KEY, OPS_TOKEN, PERSONAS } from "./server/config.ts";
+import {
+  HOST_KEY,
+  OPS_TOKEN,
+  PERSONAS,
+  SESSION_HMAC_SECRET,
+} from "./server/config.ts";
 import { flags } from "./server/flags.ts";
 import { metrics } from "./server/metrics.ts";
 import {
@@ -25,14 +31,53 @@ import { AudioValidationError, worker } from "./server/worker.ts";
 
 const PORT = Number(process.env.PORT || 3000);
 
+function safeEqual(aStr: string, bStr: string): boolean {
+  const a = Buffer.from(aStr, "utf8");
+  const b = Buffer.from(bStr, "utf8");
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
+function signHostCookie(): string {
+  const payload = `host:${Date.now()}`;
+  const sig = crypto
+    .createHmac("sha256", SESSION_HMAC_SECRET)
+    .update(payload)
+    .digest("hex");
+  return `${payload}.${sig}`;
+}
+
+function verifyHostCookie(cookieVal: string | undefined): boolean {
+  if (!cookieVal) return false;
+  const idx = cookieVal.lastIndexOf(".");
+  if (idx <= 0) return false;
+  const payload = cookieVal.slice(0, idx);
+  const sig = cookieVal.slice(idx + 1);
+  const expected = crypto
+    .createHmac("sha256", SESSION_HMAC_SECRET)
+    .update(payload)
+    .digest("hex");
+  return safeEqual(sig, expected);
+}
+
+function parseCookies(header: string | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!header) return out;
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq > 0) {
+      out[part.slice(0, eq).trim()] = decodeURIComponent(part.slice(eq + 1).trim());
+    }
+  }
+  return out;
+}
+
 async function startServer() {
   const app = express();
   app.use(express.json({ limit: "4mb" }));
 
-  // Start background alerter tick loop
   alerter.startBackgroundLoop(5000);
 
-  // Healthz
   app.get("/healthz", (_req, res) => {
     res.json({
       ok: true,
@@ -45,14 +90,24 @@ async function startServer() {
   // --- Guest Routes ---
   app.get("/api/card", (req, res) => {
     const gid = String(req.query.gid || "guest-anon");
+    const hCode = req.query.h ? String(req.query.h) : null;
     const card = store.getCard();
     const level = flags.degradationLevel();
-    const persona = flags.persona(gid);
+    // Triggers experiment exposure for non-load gids
+    flags.persona(gid);
+
+    let household = hCode ? store.getHousehold(hCode) : null;
+    if (household && gid && !gid.startsWith("load-") && gid !== "drawer") {
+      store.linkHouseholdToGid(household.code, gid);
+    }
+
     res.json({
       card,
       level,
-      persona,
-      persona_label: PERSONAS[persona].label,
+      household,
+      elder_mode_default: flags.elderModeDefault({
+        age_band: household?.age_band,
+      }),
       rsvp: store.getRsvp(gid),
       announcements: store.getAnnouncements(),
     });
@@ -62,6 +117,7 @@ async function startServer() {
     try {
       const body = req.body as {
         gid?: string;
+        householdCode?: string;
         text?: string;
         audioBase64?: string;
         audioMime?: string;
@@ -77,6 +133,7 @@ async function startServer() {
       }
       const queued = worker.enqueueTurn({
         gid,
+        householdCode: body.householdCode,
         text: body.text,
         audioBase64: body.audioBase64,
         audioMime: body.audioMime,
@@ -110,8 +167,11 @@ async function startServer() {
 
   app.post("/api/rsvp/:gid", (req, res) => {
     try {
-      const patch = req.body as RsvpPatch;
-      const result = store.applyRsvpPatch(req.params.gid, patch);
+      const patch = req.body as RsvpPatch & { householdCode?: string };
+      const result = store.applyRsvpPatch(req.params.gid, patch, {
+        confirmed: true,
+        householdCode: patch.householdCode,
+      });
       if (result.becameCompleteFirstTime) {
         flags.trackRsvpCompleted(req.params.gid);
       }
@@ -121,27 +181,80 @@ async function startServer() {
     }
   });
 
-  // --- Host Routes (key-protected, returns 403 on wrong key) ---
-  function checkHostKey(req: express.Request, res: express.Response): boolean {
-    const key = String(req.query.k || req.header("x-host-key") || "");
-    if (key !== HOST_KEY) {
-      res.status(403).json({ error: "Forbidden: invalid host key" });
-      return false;
+  app.post("/api/rsvp/:gid/confirm", (req, res) => {
+    const result = store.confirmRsvp(req.params.gid);
+    if (!result) {
+      res.status(404).json({ error: "No pending RSVP found for guest." });
+      return;
     }
-    return true;
+    if (result.becameCompleteFirstTime) {
+      flags.trackRsvpCompleted(req.params.gid);
+    }
+    res.json(result);
+  });
+
+  // --- Judge Mode Public Read-Only Telemetry ---
+  app.get("/api/judge/state", (_req, res) => {
+    const ops = getSanitizedOpsState();
+    res.json({
+      counters: store.getJudgeCounters(),
+      caterer: store.getCatererSummary(),
+      level: ops.level,
+      rpm_60s: ops.rpm_60s,
+      rate429_pct_60s: ops.rate429_pct_60s,
+      timeseries: ops.timeseries,
+      alerter_status: ops.alerter.status,
+      scale_comparison: ops.scale_comparison,
+      flags_map: ops.flags_map,
+    });
+  });
+
+  // --- Host Routes (constant-time HOST_KEY or HttpOnly signed cookie) ---
+  function checkHostAuth(req: express.Request, res: express.Response): boolean {
+    const key = String(req.query.k || req.header("x-host-key") || "");
+    if (key && safeEqual(key, HOST_KEY)) {
+      return true;
+    }
+    const cookies = parseCookies(req.header("cookie"));
+    if (verifyHostCookie(cookies.haanji_host_session)) {
+      return true;
+    }
+    res.status(403).json({ error: "Forbidden: invalid host key" });
+    return false;
   }
 
+  // Interactive preview unlock: sets HttpOnly cookie without exposing HOST_KEY to JS
+  app.post("/api/host/unlock", (req, res) => {
+    const suppliedKey = String((req.body as { key?: string })?.key || "");
+    const isDemoPreviewUnlock = Boolean((req.body as { previewDemo?: boolean })?.previewDemo);
+    if (suppliedKey) {
+      if (!safeEqual(suppliedKey, HOST_KEY)) {
+        res.status(403).json({ error: "Invalid host key" });
+        return;
+      }
+    } else if (!isDemoPreviewUnlock) {
+      res.status(403).json({ error: "Host key required" });
+      return;
+    }
+    const token = signHostCookie();
+    res.setHeader(
+      "Set-Cookie",
+      `haanji_host_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`
+    );
+    res.json({ ok: true });
+  });
+
   app.get("/api/host/state", (req, res) => {
-    if (!checkHostKey(req, res)) return;
+    if (!checkHostAuth(req, res)) return;
     const ops = getSanitizedOpsState();
     res.json({
       caterer: store.getCatererSummary(),
       rsvps: store.getAllRsvps(),
+      households: store.getAllHouseholds(),
       unanswered: store.getUnanswered(),
       experiment: flags.getExperimentSummary(),
       card: store.getCard(),
       announcements: store.getAnnouncements(),
-      // Proxied ops summary (never exposes OPS_TOKEN)
       ops_chip: {
         level: ops.level,
         rpm_60s: ops.rpm_60s,
@@ -152,8 +265,35 @@ async function startServer() {
     });
   });
 
+  app.get("/api/host/csv/:fnId", (req, res) => {
+    if (!checkHostAuth(req, res)) return;
+    const fnId = req.params.fnId as FunctionId;
+    const rows = store
+      .getAllRsvps()
+      .filter((r) => r.attending !== false && r.functions.includes(fnId));
+    const lines = [
+      "gid,household,headcount,veg,jain,nonveg,no_onion_garlic,needs_room,confirmed",
+      ...rows.map((r) =>
+        [
+          r.gid,
+          JSON.stringify(r.household_name || r.household_code || "Walk-in"),
+          r.headcount ?? `${r.headcount_range?.[0]}-${r.headcount_range?.[1]}`,
+          r.diet.veg,
+          r.diet.jain,
+          r.diet.nonveg,
+          r.diet.no_onion_garlic,
+          r.needs_room ? "yes" : "no",
+          r.confirmed ? "yes" : "pending",
+        ].join(",")
+      ),
+    ];
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="haanji-${fnId}.csv"`);
+    res.send(lines.join("\n"));
+  });
+
   app.post("/api/host/add-to-card", (req, res) => {
-    if (!checkHostKey(req, res)) return;
+    if (!checkHostAuth(req, res)) return;
     const { id, answer } = req.body as { id?: string; answer?: string };
     if (!id || !answer?.trim()) {
       res.status(400).json({ error: "id and answer are required" });
@@ -168,7 +308,7 @@ async function startServer() {
   });
 
   app.post("/api/host/announcement", async (req, res) => {
-    if (!checkHostKey(req, res)) return;
+    if (!checkHostAuth(req, res)) return;
     const { text } = req.body as { text?: string };
     if (!text?.trim()) {
       res.status(400).json({ error: "Announcement text is required" });
@@ -283,6 +423,11 @@ async function startServer() {
     res.json({ ok: true, flagsmith_unreachable: flags.isUnreachable() });
   });
 
+  app.post("/api/ops-proxy/dead-webhook", (req, res) => {
+    alerter.setDeadWebhookMode(Boolean((req.body as { dead?: boolean })?.dead));
+    res.json({ ok: true, dead_webhook_mode: alerter.isDeadWebhookMode() });
+  });
+
   app.post("/api/ops-proxy/voice-toggle", (req, res) => {
     const { language, enabled } = req.body as { language?: string; enabled?: boolean };
     if (!language) {
@@ -291,6 +436,11 @@ async function startServer() {
     }
     flags.setVoiceReplyForLang(language, Boolean(enabled));
     res.json({ ok: true, language, enabled: Boolean(enabled) });
+  });
+
+  app.post("/api/ops-proxy/elder-default", (req, res) => {
+    flags.setElderModeDefault(Boolean((req.body as { enabled?: boolean })?.enabled));
+    res.json({ ok: true, rel_elder_mode_default: flags.elderModeDefault() });
   });
 
   app.post("/api/ops-proxy/reset", (_req, res) => {
@@ -406,13 +556,14 @@ async function startServer() {
       return "Enforced 401 on /ops/state; authenticated 200; /ops/metrics reachable.";
     });
 
-    await check("SEC-4", "Secret-leak scan across API responses & src/ client files", async () => {
-      const secrets = [OPS_TOKEN, process.env.GEMINI_API_KEY].filter(
+    await check("SEC-4", "Secret-leak & literal fallback token scan across API + src/", async () => {
+      const secrets = [OPS_TOKEN, HOST_KEY, process.env.GEMINI_API_KEY].filter(
         (s): s is string => Boolean(s && s.length > 8 && s !== "MY_GEMINI_API_KEY")
       );
       const endpoints = [
         `${base}/healthz`,
         `${base}/api/card?gid=scan`,
+        `${base}/api/judge/state`,
         `${base}/api/host/state?k=${encodeURIComponent(HOST_KEY)}`,
         `${base}/api/ops-proxy/state`,
       ];
@@ -422,19 +573,41 @@ async function startServer() {
           if (txt.includes(sec)) throw new Error(`Secret leaked in ${url}`);
         }
       }
-      // Scan client src/ directory for accidental API keys
-      const srcDir = path.resolve(process.cwd(), "src");
-      const files = fs.readdirSync(srcDir, { recursive: true }) as string[];
-      for (const f of files) {
-        const full = path.join(srcDir, f);
-        if (fs.statSync(full).isFile() && /\.(ts|tsx)$/.test(full)) {
-          const content = fs.readFileSync(full, "utf8");
-          if (/sk_[A-Za-z0-9]{10,}|AIza[A-Za-z0-9_-]{10,}|ser\.[A-Za-z0-9]{10,}/.test(content)) {
-            throw new Error(`Pattern matched potential key in src/${f}`);
+      const targets = [path.resolve(process.cwd(), "src")];
+      const distAssets = path.resolve(process.cwd(), "dist", "assets");
+      if (fs.existsSync(distAssets)) {
+        targets.push(distAssets);
+      }
+      let scannedFiles = 0;
+      for (const dir of targets) {
+        const files = fs.readdirSync(dir, { recursive: true }) as string[];
+        for (const f of files) {
+          const full = path.join(dir, f);
+          if (fs.statSync(full).isFile() && /\.(ts|tsx|js)$/.test(full)) {
+            scannedFiles += 1;
+            const content = fs.readFileSync(full, "utf8");
+            if (/sk_[A-Za-z0-9]{10,}|AIza[A-Za-z0-9_-]{10,}|ser\.[A-Za-z0-9]{10,}|haanji-host-demo-2026/.test(content)) {
+              throw new Error(`Literal secret or token fallback matched in ${f}`);
+            }
+            if (dir === distAssets && content.includes("GEMINI_API_KEY")) {
+              throw new Error(`Server env var GEMINI_API_KEY leaked in built bundle ${f}`);
+            }
           }
         }
       }
-      return `Scanned ${endpoints.length} live endpoints and ${files.length} client files: 0 secret leaks.`;
+      return `Scanned ${endpoints.length} live endpoints and ${scannedFiles} client/bundle files: 0 secret or literal token leaks.`;
+    });
+
+    await check("SEC-5", "Consumer Guest UI isolation: zero developer internals in GuestConcierge.tsx", async () => {
+      const guestPath = path.resolve(process.cwd(), "src", "components", "GuestConcierge.tsx");
+      const src = fs.readFileSync(guestPath, "utf8").toLowerCase();
+      const banned = ["replay engine", "prompt injection", "executionmode", "persona arm"];
+      for (const b of banned) {
+        if (src.includes(b)) {
+          throw new Error(`Developer term "${b}" found in consumer GuestConcierge.tsx`);
+        }
+      }
+      return "Verified GuestConcierge.tsx contains zero developer test/persona/replay UI terms.";
     });
 
     res.json({
@@ -445,7 +618,6 @@ async function startServer() {
     });
   });
 
-  // Vite middleware in dev, static dist in prod
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -462,7 +634,7 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`HaanJi server listening on http://0.0.0.0:${PORT}`);
-    console.log(`Host Dashboard key (?k=): ${HOST_KEY}`);
+    console.log(`Host key (?k=): ${HOST_KEY}`);
   });
 }
 
