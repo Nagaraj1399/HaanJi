@@ -193,9 +193,11 @@ haanji/
 ├── data/
 │   ├── wedding.yaml             # Demo wedding invitation card
 │   └── wedding.test.yaml        # Frozen Golden Set snapshot
+├── public/
+│   └── assets/landing/          # Optimized WebP/MP4/PNG palace-luxury hero & venue assets
 ├── server/
 │   ├── capabilities.ts          # Cached 60s real probes for Sarvam, Gemini, Flagsmith, NudgeBee
-│   ├── flags_config.ts          # Central list of Flagsmith flag keys, defaults, and descriptions
+│   ├── flags_config.ts          # Central list of all 7 Flagsmith flag keys, defaults, and descriptions
 │   ├── flags.ts                 # Flag evaluation, percentage rollout, A/B tracking, Flagsmith sync
 │   ├── brain.ts                 # Language detector, 5-lang offline templates, Sarvam/Gemini live calls, postCheck()
 │   ├── worker.ts                # Async turn pipeline, 413 guard, TTS gating, behind_answer trace
@@ -205,13 +207,16 @@ haanji/
 │   ├── routes_ops.ts            # /ops/* endpoints & Muhurat Rush demo controller
 │   └── tests/                   # Unit, Golden Set, causal loop, and security suites
 └── src/
-    ├── App.tsx                  # Workspace navigation, ?h= household link, ?demo=1 checklist wrapper
+    ├── App.tsx                  # Single-scroll wedding landing, ?h= household link, ?demo=1 checklist wrapper
+    ├── types/haanji.ts          # Shared frontend TypeScript interfaces
+    ├── utils/calendar.ts        # .ics calendar event download helper
     └── components/
-        ├── GuestConcierge.tsx   # Guest UI: voice/text, 5 languages, 3-sponsor modal, RSVP confirm
-        ├── HostDashboard.tsx    # Family Host Desk: caterer totals, CSV, Answer-Once inbox
-        ├── OpsControlPlane.tsx  # Ops UI: Muhurat Rush timeline, Flags catalog, rollout & A/B table
+        ├── GuestConcierge.tsx   # Guest UI: hold-to-ask voice/text, 5 languages, behind-answer trace, RSVP confirm
+        ├── HostDashboard.tsx    # Family Host Desk: caterer totals, CSV, Answer-Once inbox, announcements
+        ├── OpsControlPlane.tsx  # Ops UI: Muhurat Rush timeline, 7-flag catalog, rollout slider & A/B table
         ├── JudgeMode.tsx        # Read-only Judge Mode view
         ├── TestWorkbench.tsx    # Automated test runner UI
+        ├── WeddingCardDrawer.tsx # Official invitation card quick-reference drawer
         └── DemoChecklist.tsx    # Hidden floating ?demo=1 recording checklist
 ```
 

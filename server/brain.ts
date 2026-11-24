@@ -576,6 +576,61 @@ WEDDING CARD:
 ${formatCardForPrompt(card)}`;
 }
 
+function parseJsonBrainResult(raw: string): BrainResult {
+  const withoutThink = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  const stripped = withoutThink.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+  const firstBrace = stripped.indexOf("{");
+  const lastBrace = stripped.lastIndexOf("}");
+  const jsonSlice =
+    firstBrace >= 0 && lastBrace > firstBrace
+      ? stripped.slice(firstBrace, lastBrace + 1)
+      : stripped;
+  const parsed = JSON.parse(jsonSlice) as BrainResult;
+  if (!parsed.rsvp_patch) parsed.rsvp_patch = {};
+  return parsed;
+}
+
+function supplementRsvpFromDeterministic(
+  liveRes: BrainResult,
+  inputText: string,
+  targetLang: ShortLanguage,
+  card: WeddingCard,
+  persona: PersonaArm
+): BrainResult {
+  if (liveRes.intent === "injection" || liveRes.intent === "off_topic" || liveRes.intent === "unanswerable") {
+    return liveRes;
+  }
+  const det = runBrainReplay(inputText, targetLang, card, persona);
+  if (det.intent !== "rsvp" && det.intent !== "mixed") {
+    return liveRes;
+  }
+  const dp = det.rsvp_patch || {};
+  const lp: RsvpPatch = { ...(liveRes.rsvp_patch || {}) };
+  if (lp.attending === undefined && dp.attending !== undefined) lp.attending = dp.attending;
+  if ((lp.headcount === undefined || lp.headcount === null) && dp.headcount !== undefined) {
+    lp.headcount = dp.headcount;
+  }
+  if (!lp.headcount_range && dp.headcount_range) lp.headcount_range = dp.headcount_range;
+  if ((!lp.functions || lp.functions.length === 0) && dp.functions?.length) {
+    lp.functions = dp.functions;
+  }
+  if (dp.diet) {
+    lp.diet = {
+      veg: lp.diet?.veg ?? dp.diet.veg ?? 0,
+      jain: Math.max(lp.diet?.jain ?? 0, dp.diet.jain ?? 0),
+      nonveg: lp.diet?.nonveg ?? dp.diet.nonveg ?? 0,
+      no_onion_garlic: lp.diet?.no_onion_garlic ?? dp.diet.no_onion_garlic ?? 0,
+    };
+  }
+  if (lp.needs_room === undefined && dp.needs_room !== undefined) lp.needs_room = dp.needs_room;
+
+  return {
+    ...liveRes,
+    intent: liveRes.intent === "faq" ? "mixed" : liveRes.intent || det.intent,
+    rsvp_patch: lp,
+  };
+}
+
 async function runSarvamChat(
   inputText: string,
   targetLang: ShortLanguage,
@@ -600,7 +655,7 @@ async function runSarvamChat(
       body: JSON.stringify({
         model: "sarvam-m",
         temperature: 0.2,
-        max_tokens: 450,
+        max_tokens: 750,
         messages: [
           { role: "system", content: systemInstruction },
           { role: "user", content: inputText },
@@ -617,8 +672,7 @@ async function runSarvamChat(
       choices?: Array<{ message?: { content?: string } }>;
     };
     const raw = (json.choices?.[0]?.message?.content || "").trim();
-    const cleaned = raw.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
-    return JSON.parse(cleaned) as BrainResult;
+    return parseJsonBrainResult(raw);
   });
 
   // Guarantee answer language matches non-English guest turn
@@ -656,8 +710,15 @@ export async function runBrainLive(
         currentRsvp,
         persona
       );
+      const enriched = supplementRsvpFromDeterministic(
+        sarvamRes,
+        inputText,
+        targetLang,
+        card,
+        persona
+      );
       return {
-        ...postCheck(sarvamRes, inputText, targetLang, card),
+        ...postCheck(enriched, inputText, targetLang, card),
         provider: "sarvam",
       };
     } catch (sarvamErr) {
@@ -752,8 +813,15 @@ export async function runBrainLive(
     }
   }
   rawResult.answer_language = targetLang;
+  const enriched = supplementRsvpFromDeterministic(
+    rawResult,
+    inputText,
+    targetLang,
+    card,
+    persona
+  );
   return {
-    ...postCheck(rawResult, inputText, targetLang, card),
+    ...postCheck(enriched, inputText, targetLang, card),
     provider: "gemini",
   };
 }

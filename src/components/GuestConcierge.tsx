@@ -468,9 +468,9 @@ export function GuestConcierge({
   const statusChipLabel =
     level === 0
       ? voiceOffline
-        ? "Card-only mode"
+        ? "Voice off"
         : voicePaused
-          ? "Voice resting"
+          ? "Voice paused"
           : "Live voice"
       : level === 1
         ? "Text replies (very busy)"
@@ -562,9 +562,13 @@ export function GuestConcierge({
       >
         {voiceOffline || voicePaused ? (
           <div className="py-3 space-y-2">
-            <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full border border-[#B8925A]/30 text-xs uppercase tracking-[0.18em] text-[#E6CFA3]">
-              <MicOff className="w-4 h-4 text-[#B8925A]" strokeWidth={1.5} />
-              <span>Voice is resting, please type</span>
+            <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full border border-[#B8925A]/30 text-xs uppercase tracking-[0.16em] text-[#E6CFA3]">
+              <MicOff className="w-4 h-4 text-[#B8925A] shrink-0" strokeWidth={1.5} />
+              <span>
+                {voiceOffline
+                  ? "Voice is off on this demo. Please type your question below."
+                  : "Voice is paused right now, please type"}
+              </span>
             </div>
           </div>
         ) : (
@@ -876,10 +880,10 @@ export function GuestConcierge({
       <div className="pt-4 border-t hairline-gold flex flex-wrap items-center justify-between gap-3 text-xs text-[#F5EDE1]/65">
         <span>
           {caps?.sarvam
-            ? "Live voice & translation by Sarvam AI · Grounded in the wedding card."
+            ? "Live AI by Sarvam is ON · Grounded in the wedding card."
             : caps?.live_ai
-              ? "Live AI voice & replies ON · Grounded in the wedding card."
-              : "Saved card mode active in all 5 languages."}
+              ? "Live AI is ON · Grounded in the wedding card."
+              : "Offline card fallback active in all 5 languages (no live AI keys set)."}
         </span>
         <button
           type="button"

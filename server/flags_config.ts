@@ -50,7 +50,13 @@ export const FLAG_CATALOG_META: FlagDefinition[] = [
     key: "rel_voice_reply",
     type: "boolean",
     defaultValue: FLAG_DEFAULTS.rel_voice_reply,
-    controls: "Per-language voice synthesis kill switch plus percentage rollout (rel_voice_rollout_pct)",
+    controls: "Per-language voice synthesis kill switch",
+  },
+  {
+    key: "rel_voice_rollout_pct",
+    type: "integer",
+    defaultValue: FLAG_DEFAULTS.rel_voice_rollout_pct,
+    controls: "Percentage rollout (0-100%) gating which guest IDs receive live voice replies",
   },
   {
     key: "rel_elder_mode_default",

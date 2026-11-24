@@ -56,6 +56,7 @@ export class FlagsClient {
   private featureIdCache = new Map<string, number>();
   private lastFetchedAt: string = new Date().toISOString();
   private recentRolloutGuests = new Map<string, { gid: string; included: boolean; bucket: number }>();
+  private localDegradeOverride = false;
 
   setUnreachable(flag: boolean): void {
     this.state.unreachable = flag;
@@ -327,13 +328,13 @@ export class FlagsClient {
         if (typeof item.feature?.id === "number") {
           this.featureIdCache.set(name, item.feature.id);
         }
-        if (name === "ops_degradation_level" && item.feature_state_value !== null) {
+        if (name === "ops_degradation_level" && item.feature_state_value !== null && !this.localDegradeOverride) {
           const n = Number(item.feature_state_value);
           if (n === 0 || n === 1 || n === 2) {
             this.state.ops_degradation_level = n;
             metrics.setDegradationLevel(n);
           }
-        } else if (name === "ops_sarvam_rpm_budget" && item.feature_state_value !== null) {
+        } else if (name === "ops_sarvam_rpm_budget" && item.feature_state_value !== null && !this.localDegradeOverride) {
           const n = Number(item.feature_state_value);
           if (Number.isFinite(n) && n >= 5 && n <= 55) {
             this.state.sarvam_rpm_budget = n;
@@ -397,10 +398,11 @@ export class FlagsClient {
       ops_degradation_level: this.degradationLevel(),
       ops_sarvam_rpm_budget: this.rpmBudget(),
       exp_voice_persona: `50/50 split (n=${this.armExposures.formal + this.armExposures.warm})`,
-      rel_voice_reply: `${Object.entries(this.state.rel_voice_reply)
+      rel_voice_reply: Object.entries(this.state.rel_voice_reply)
         .filter(([, v]) => v)
         .map(([k]) => k.slice(0, 2))
-        .join(",") || "none"} · ${this.state.unreachable ? 100 : this.state.rel_voice_rollout_pct}% rollout`,
+        .join(",") || "none",
+      rel_voice_rollout_pct: `${this.state.unreachable ? 100 : this.state.rel_voice_rollout_pct}%`,
       rel_elder_mode_default: this.elderModeDefault(),
       cfg_llm: `${this.llmConfig().model} (${this.llmConfig().prompt_version})`,
     };
@@ -435,6 +437,8 @@ export class FlagsClient {
     if (rpmBudget !== null) {
       this.state.sarvam_rpm_budget = rpmBudget;
     }
+    this.localDegradeOverride =
+      actor !== "muhurat_demo_reset" && actor !== "ops_reset";
     this.lastFetchedAt = new Date().toISOString();
     metrics.setDegradationLevel(this.state.ops_degradation_level);
 
@@ -455,11 +459,74 @@ export class FlagsClient {
       `ops_degradation_level = ${this.state.ops_degradation_level}, rpm_budget = ${this.state.sarvam_rpm_budget} (${actor})`
     );
 
+    if (actor !== "muhurat_demo_reset" && actor !== "ops_reset") {
+      void this.pushDegradationToFlagsmithAdmin(
+        this.state.ops_degradation_level,
+        this.state.sarvam_rpm_budget
+      );
+    }
+
     return {
       level: this.state.ops_degradation_level,
       rpm_budget: this.state.sarvam_rpm_budget,
       cached_feature_ids: this.featureIdCache.size,
     };
+  }
+
+  private async pushDegradationToFlagsmithAdmin(
+    level: DegradationLevel,
+    rpmBudget: number
+  ): Promise<void> {
+    const adminKey = process.env.FLAGSMITH_ADMIN_KEY?.trim();
+    const envId = process.env.FLAGSMITH_ENV_ID?.trim();
+    if (!adminKey || !envId) return;
+
+    try {
+      const listRes = await fetch(
+        `https://api.flagsmith.com/api/v1/environments/${encodeURIComponent(envId)}/featurestates/`,
+        {
+          headers: { Authorization: `Api-Key ${adminKey}` },
+          signal: AbortSignal.timeout(4000),
+        }
+      );
+      if (!listRes.ok) return;
+      const listJson = (await listRes.json()) as {
+        results?: Array<{ id: number; feature?: number; feature_state_value?: unknown }>;
+      };
+      const results = listJson.results || [];
+      const degId = this.featureIdCache.get("ops_degradation_level");
+      const rpmId = this.featureIdCache.get("ops_sarvam_rpm_budget");
+
+      for (const fsRow of results) {
+        let nextVal: string | null = null;
+        if (degId && fsRow.feature === degId) nextVal = String(level);
+        if (rpmId && fsRow.feature === rpmId) nextVal = String(rpmBudget);
+        if (nextVal !== null) {
+          await fetch(
+            `https://api.flagsmith.com/api/v1/environments/${encodeURIComponent(envId)}/featurestates/${fsRow.id}/`,
+            {
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Api-Key ${adminKey}`,
+              },
+              body: JSON.stringify({
+                enabled: true,
+                feature_state_value: nextVal,
+              }),
+              signal: AbortSignal.timeout(4000),
+            }
+          );
+        }
+      }
+      this.localDegradeOverride = false;
+      capabilities.recordEvent(
+        "flagsmith",
+        `Pushed Level ${level} (${rpmBudget} RPM) to Flagsmith Cloud`
+      );
+    } catch {
+      // Keep local override safely if remote Admin API call fails
+    }
   }
 
   getAuditLog(): FlagAuditEntry[] {
@@ -482,6 +549,7 @@ export class FlagsClient {
     this.auditLog = [];
     this.featureIdCache.clear();
     this.recentRolloutGuests.clear();
+    this.localDegradeOverride = false;
     this.lastFetchedAt = new Date().toISOString();
     metrics.setDegradationLevel(0);
   }

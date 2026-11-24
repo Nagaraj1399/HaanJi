@@ -256,13 +256,20 @@ export function computeCatererSummary(rsvps: GuestRsvp[]): CatererSummary {
 
     const targetFns: FunctionId[] = r.functions.length > 0 ? r.functions : [];
 
-    if (r.headcount !== null && r.headcount > 0) {
+    if ((r.confirmed || r.rsvp_complete) && r.headcount !== null && r.headcount > 0) {
       for (const fn of targetFns) {
         byFn[fn].confirmed_headcount += r.headcount;
         byFn[fn].diet.veg += r.diet.veg;
         byFn[fn].diet.jain += r.diet.jain;
         byFn[fn].diet.nonveg += r.diet.nonveg;
         byFn[fn].diet.no_onion_garlic += r.diet.no_onion_garlic;
+      }
+    } else if (!r.rsvp_complete && r.headcount !== null && r.headcount > 0) {
+      totalUnconfirmedMin += r.headcount;
+      totalUnconfirmedMax += r.headcount;
+      for (const fn of targetFns) {
+        byFn[fn].unconfirmed_min += r.headcount;
+        byFn[fn].unconfirmed_max += r.headcount;
       }
     } else if (r.headcount_range !== null) {
       const [lo, hi] = r.headcount_range;

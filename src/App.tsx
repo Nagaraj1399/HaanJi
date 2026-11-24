@@ -1197,14 +1197,14 @@ export default function App() {
                       </span>
                     </h1>
 
-                    <p className="text-base sm:text-lg text-[#F5EDE1]/80 leading-relaxed max-w-xl indic-relaxed">
+                    <p className="text-base sm:text-lg text-[#F5EDE1]/85 leading-relaxed max-w-xl indic-relaxed">
                       {card ? (
-                        <>
+                        <span className="block text-sm uppercase tracking-[0.16em] text-[#E6CFA3] mb-2">
                           {card.wedding.title} · {card.wedding.dates}
-                          {cityShort ? ` · ${cityShort}` : ""}.{" "}
-                        </>
+                          {cityShort ? ` · ${cityShort}` : ""}
+                        </span>
                       ) : null}
-                      Simply speak, and HaanJi answers timings, venues, dress codes and food, and keeps your RSVP up to date.
+                      Wedding season, sorted. Guests ask in their own language. HaanJi answers from the card. The family stops answering the same 200 calls.
                     </p>
 
                     <div className="relative z-10 flex flex-wrap items-center gap-4 pt-2">
@@ -1303,6 +1303,22 @@ export default function App() {
                   <p className="text-sm text-[#F5EDE1]/70 max-w-md">
                     Every function timing, venue, dress code, and calendar link synced directly from the wedding card.
                   </p>
+                </div>
+
+                {/* Compact 3-Step Strip */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {[
+                    "1. Ask (voice or text, 5 languages)",
+                    "2. Answered from the wedding card only",
+                    "3. RSVP confirmed, then sent to the caterer",
+                  ].map((item) => (
+                    <div
+                      key={item}
+                      className="rounded-xl border border-[#B8925A]/25 bg-[#14050A]/55 px-4 py-3 text-xs uppercase tracking-[0.14em] text-[#E6CFA3]"
+                    >
+                      {item}
+                    </div>
+                  ))}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -1884,23 +1900,23 @@ export default function App() {
               </div>
             </section>
 
-            {/* 8. CALM ON THE BUSIEST MINUTE (Shown only if ops endpoints exist) */}
-            {opsAvailable && (
-              <section className="py-20 lg:py-40 px-4 sm:px-6 lg:px-10 border-b hairline-gold">
-                <div className="mx-auto max-w-7xl space-y-10">
-                  <div className="flex flex-wrap items-end justify-between gap-6">
-                    <div className="max-w-2xl space-y-3">
-                      <p className="text-[11px] uppercase tracking-[0.2em] text-[#E6CFA3]">
-                        07 · Calm on the busiest minute
-                      </p>
-                      <h2 className="font-display font-light text-4xl sm:text-5xl text-[#F5EDE1]">
-                        Protected during the muhurat rush
-                      </h2>
-                      <p className="text-sm text-[#F5EDE1]/75 leading-relaxed">
-                        When hundreds of guests ask at once during the muhurat, HaanJi slows down gracefully, and only after a human approves.
-                      </p>
-                    </div>
+            {/* 8. SPONSOR TOOLS & MUHURAT PROTECTION */}
+            <section className="py-20 lg:py-40 px-4 sm:px-6 lg:px-10 border-b hairline-gold">
+              <div className="mx-auto max-w-7xl space-y-10">
+                <div className="flex flex-wrap items-end justify-between gap-6">
+                  <div className="max-w-2xl space-y-3">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#E6CFA3]">
+                      07 · Calm on the busiest minute
+                    </p>
+                    <h2 className="font-display font-light text-4xl sm:text-5xl text-[#F5EDE1]">
+                      Protected during the muhurat rush
+                    </h2>
+                    <p className="text-sm text-[#F5EDE1]/75 leading-relaxed">
+                      When hundreds of guests ask at once during the muhurat, HaanJi slows down gracefully, and only after a human approves.
+                    </p>
+                  </div>
 
+                  {opsAvailable && (
                     <button
                       type="button"
                       onClick={() => switchWorkspaceView("ops")}
@@ -1908,70 +1924,127 @@ export default function App() {
                     >
                       Open Ops Control
                     </button>
-                  </div>
-
-                  {/* 4-step horizontal flow */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {[
-                      {
-                        icon: Sparkles,
-                        name: "Sarvam AI",
-                        desc: "Hears and answers guests in five languages",
-                      },
-                      {
-                        icon: Activity,
-                        name: "NudgeBee",
-                        desc: "Spots the surge and investigates upstream load",
-                      },
-                      {
-                        icon: ShieldCheck,
-                        name: "Human approval",
-                        desc: "Operator confirms before any capability shifts",
-                      },
-                      {
-                        icon: Flag,
-                        name: "Flagsmith",
-                        desc: "Switches the degradation level cleanly",
-                      },
-                    ].map((step) => {
-                      const Icon = step.icon;
-                      return (
-                        <div key={step.name} className="glass-card p-6 space-y-3">
-                          <Icon className="w-5 h-5 text-[#E6CFA3]" strokeWidth={1.35} />
-                          <h3 className="font-display font-light text-2xl text-[#F5EDE1]">
-                            {step.name}
-                          </h3>
-                          <p className="text-xs text-[#F5EDE1]/70 leading-relaxed">{step.desc}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Live status pills from /api/capabilities */}
-                  <div className="flex flex-wrap items-center gap-3">
-                    {[
-                      { label: "Sarvam AI", live: Boolean(caps?.sarvam) },
-                      { label: "Flagsmith", live: Boolean(caps?.flagsmith) },
-                      { label: "NudgeBee", live: Boolean(caps?.nudgebee) },
-                    ].map((svc) => (
-                      <span
-                        key={svc.label}
-                        className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#B8925A]/30 bg-[#14050A]/55 text-[11px] uppercase tracking-[0.18em] text-[#F5EDE1]/85"
-                      >
-                        <span
-                          className={`h-2 w-2 rounded-full ${
-                            svc.live ? "bg-[#8FB39A]" : "bg-[#F5EDE1]/40"
-                          }`}
-                        />
-                        <span>
-                          {svc.label} · {svc.live ? "Live" : "Off"}
-                        </span>
-                      </span>
-                    ))}
-                  </div>
+                  )}
                 </div>
-              </section>
-            )}
+
+                {/* 3 Sponsor Tool Cards driven by /api/capabilities */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  {[
+                    {
+                      icon: Sparkles,
+                      name: "Sarvam AI",
+                      live: Boolean(caps?.sarvam),
+                      reason: caps?.sarvam_reason || "Checking status...",
+                      role: "Hears, translates, understands, and speaks replies across 5 languages grounded strictly in the wedding card.",
+                      lastEvent:
+                        caps?.last_events?.sarvam?.summary || "Waiting for first guest voice/text turn",
+                      lastTs: caps?.last_events?.sarvam?.ts || null,
+                    },
+                    {
+                      icon: Flag,
+                      name: "Flagsmith",
+                      live: Boolean(caps?.flagsmith),
+                      reason: caps?.flagsmith_reason || "Checking status...",
+                      role: "Controls degradation level (0/1/2), 5-55 RPM budget, voice rollout %, Elder Mode defaults, and persona split.",
+                      lastEvent:
+                        caps?.last_events?.flagsmith?.summary || "Contract default flags active",
+                      lastTs: caps?.last_events?.flagsmith?.ts || null,
+                    },
+                    {
+                      icon: Activity,
+                      name: "NudgeBee",
+                      live: Boolean(caps?.nudgebee),
+                      reason: caps?.nudgebee_reason || "Checking status...",
+                      role: "Detects quota alerts, investigates cluster health vs. upstream 429s, and awaits human approval before flag changes.",
+                      lastEvent:
+                        caps?.last_events?.nudgebee?.summary || "No incident alerts triggered yet",
+                      lastTs: caps?.last_events?.nudgebee?.ts || null,
+                    },
+                  ].map((tool) => {
+                    const Icon = tool.icon;
+                    return (
+                      <div key={tool.name} className="glass-card p-6 flex flex-col justify-between space-y-5">
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-2.5">
+                              <Icon className="w-5 h-5 text-[#E6CFA3] shrink-0" strokeWidth={1.35} />
+                              <h3 className="font-display font-light text-2xl text-[#F5EDE1]">
+                                {tool.name}
+                              </h3>
+                            </div>
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] uppercase tracking-[0.14em] ${
+                                tool.live
+                                  ? "border-[#8FB39A]/45 bg-[#8FB39A]/10 text-[#8FB39A]"
+                                  : "border-[#B8925A]/30 bg-[#14050A]/65 text-[#F5EDE1]/75"
+                              }`}
+                            >
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  tool.live ? "bg-[#8FB39A]" : "bg-[#F5EDE1]/45"
+                                }`}
+                              />
+                              <span>{tool.live ? "Live" : `Off: ${tool.reason}`}</span>
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-[#F5EDE1]/75 leading-relaxed">
+                            {tool.role}
+                          </p>
+                        </div>
+
+                        <div className="pt-3 border-t hairline-gold space-y-1">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#E6CFA3]">
+                            Last real event
+                          </p>
+                          <p className="text-xs text-[#F5EDE1]/85 font-mono leading-relaxed">
+                            {tool.lastEvent}
+                            {tool.lastTs ? ` · ${new Date(tool.lastTs).toLocaleTimeString()}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 4-step horizontal flow */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[
+                    {
+                      icon: Sparkles,
+                      name: "1. Sarvam Surge",
+                      desc: "Guests ask at once during the 9:30 AM muhurat",
+                    },
+                    {
+                      icon: Activity,
+                      name: "2. NudgeBee",
+                      desc: "Spots 429s, proves pods are healthy, stops unsafe scaling",
+                    },
+                    {
+                      icon: ShieldCheck,
+                      name: "3. Human approval",
+                      desc: "Operator approves remediation before any flag mutates",
+                    },
+                    {
+                      icon: Flag,
+                      name: "4. Flagsmith",
+                      desc: "Switches degradation 0 -> 1 cleanly (text stays live)",
+                    },
+                  ].map((step) => {
+                    const Icon = step.icon;
+                    return (
+                      <div key={step.name} className="rounded-xl border border-[#B8925A]/20 bg-[#14050A]/50 p-5 space-y-2">
+                        <Icon className="w-4 h-4 text-[#E6CFA3]" strokeWidth={1.35} />
+                        <h3 className="font-display font-light text-xl text-[#F5EDE1]">
+                          {step.name}
+                        </h3>
+                        <p className="text-xs text-[#F5EDE1]/70 leading-relaxed">{step.desc}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
 
             {/* 9. FOR THE FAMILY: HOST DESK TEASER (Existing features only) */}
             <section className="py-20 lg:py-40 px-4 sm:px-6 lg:px-10 border-b hairline-gold">
