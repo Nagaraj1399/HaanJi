@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
+import { capabilities } from "./capabilities.ts";
 import { flags } from "./flags.ts";
 import { metrics } from "./metrics.ts";
-import { AlertEvent, ApprovalWorkflowRun } from "./types.ts";
+import type { AlertEvent, ApprovalWorkflowRun } from "./types.ts";
 
 export type AlerterStatus = "ok" | "firing";
 
@@ -112,6 +113,10 @@ export class AlerterStateMachine {
         this.events.unshift(evt);
         if (!skipWorkflowCreation) {
           this.openDegradeWorkflow(this.fingerprint, m, nowMs);
+          capabilities.recordEvent(
+            "nudgebee",
+            `1 incident awaiting human approval (fp:${this.fingerprint})`
+          );
           void this.dispatchWebhook(evt);
         }
         return evt;
@@ -150,6 +155,10 @@ export class AlerterStateMachine {
       this.events.unshift(evt);
       if (!skipWorkflowCreation && flags.degradationLevel() > 0) {
         this.openRestoreWorkflow(fp, nowMs);
+        capabilities.recordEvent(
+          "nudgebee",
+          `Incident fp:${fp} resolved after 120s healthy window`
+        );
       }
       return evt;
     }
@@ -280,6 +289,10 @@ export class AlerterStateMachine {
       `nudgebee:${approver}`,
       `${wf.kind} approved for incident ${wf.fingerprint}`
     );
+    capabilities.recordEvent(
+      "nudgebee",
+      `Approved ${wf.kind} (${approver}) -> Flagsmith Level ${wf.proposed_action.level}`
+    );
     return wf;
   }
 
@@ -291,6 +304,10 @@ export class AlerterStateMachine {
     wf.status = "rejected";
     wf.decided_by = actor;
     wf.decided_at = new Date().toISOString();
+    capabilities.recordEvent(
+      "nudgebee",
+      `Rejected ${wf.kind} (${actor}) -> Flagsmith unchanged`
+    );
     // SAFETY INVARIANT: Flagsmith state does NOT change on reject
     return wf;
   }

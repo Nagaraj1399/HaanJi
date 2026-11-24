@@ -1,11 +1,11 @@
 import crypto from "node:crypto";
-import express, { Request, Response, NextFunction } from "express";
+import express, { type Request, type Response, type NextFunction } from "express";
 import { alerter } from "./alerter.ts";
 import { OPS_TOKEN, SARVAM_RPM_HARD_CAP } from "./config.ts";
 import { flags } from "./flags.ts";
 import { sharedLimiter } from "./limiter.ts";
 import { metrics } from "./metrics.ts";
-import { DegradationLevel } from "./types.ts";
+import type { DegradationLevel } from "./types.ts";
 
 export interface SurgeStatus {
   running: boolean;
@@ -135,6 +135,50 @@ class SurgeController {
     this.status.running = false;
     return this.getStatus();
   }
+
+  startMuhuratDemo(): {
+    flagsmith_before: { level: DegradationLevel; rpm_budget: number; source: string };
+    surge: SurgeStatus;
+  } {
+    this.stop();
+    metrics.reset();
+    alerter.reset();
+    sharedLimiter.reset();
+    flags.adminSetDegradation(0, 40, "muhurat_demo_reset", "Clean baseline before Muhurat Rush demo");
+
+    const beforeMap = flags.getAllFlagValues();
+    const flagsmith_before = {
+      level: flags.degradationLevel(),
+      rpm_budget: flags.rpmBudget(),
+      source: beforeMap.source,
+    };
+
+    const surge = this.start(120, 120);
+
+    // Seed an immediate initial burst past the 60 RPM Sarvam cap so the chart & NudgeBee investigation show immediately
+    const now = Date.now();
+    for (let i = 0; i < 66; i++) {
+      const api = i % 3 === 0 ? "stt" : i % 3 === 1 ? "chat" : "tts";
+      const is429 = i >= 45;
+      this.status.calls_attempted += 1;
+      if (is429) this.status.calls_429 += 1;
+      metrics.observeSarvam(api, is429 ? "429" : "200", is429 ? 0.09 : 0.32, now);
+    }
+    this.status.turns_sent = 22;
+    for (let t = 0; t < 22; t++) {
+      metrics.recordTurn(0, "answered");
+    }
+
+    const rolling = metrics.getRollingStats60s(now);
+    alerter.tick({
+      rate429_pct_60s: rolling.rate429_pct_60s,
+      rpm_60s: rolling.rpm_60s,
+      p95_chat_60s: rolling.p95_chat_60s,
+      queue_depth: rolling.queue_depth,
+    });
+
+    return { flagsmith_before, surge: this.getStatus() };
+  }
 }
 
 export const surgeController = new SurgeController();
@@ -166,6 +210,10 @@ export function getSanitizedOpsState() {
     hard_cap: SARVAM_RPM_HARD_CAP,
     flagsmith_unreachable: flags.isUnreachable(),
     flags_map: flags.getAllFlagValues(),
+    flags_catalog: flags.getFlagsCatalog(),
+    voice_rollout: flags.getVoiceRolloutState(),
+    experiment: flags.getExperimentSummary(),
+    nudgebee_configured: Boolean(process.env.NUDGEBEE_EVENT_WEBHOOK_URL?.trim()),
     ...rolling,
     timeseries: metrics.getTimeSeries(),
     totals: metrics.getTotals(),
@@ -297,6 +345,17 @@ export function createOpsRouter(): express.Router {
     }
     flags.setVoiceReplyForLang(language, Boolean(enabled));
     res.json({ ok: true, language, enabled: Boolean(enabled) });
+  });
+
+  router.post("/voice-rollout", (req, res) => {
+    const pct = Number((req.body as { pct?: number })?.pct ?? 100);
+    const updated = flags.setVoiceRolloutPct(pct);
+    res.json({ ok: true, pct: updated, voice_rollout: flags.getVoiceRolloutState() });
+  });
+
+  router.post("/sync-flags", async (_req, res) => {
+    const syncRes = await flags.syncFromFlagsmith();
+    res.json({ ok: true, ...syncRes, state: getSanitizedOpsState() });
   });
 
   router.post("/reset", (_req, res) => {

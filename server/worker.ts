@@ -1,20 +1,25 @@
 import {
+  detectInputLanguage,
+  detectMatchedFunction,
+  getActiveAiProvider,
+  hasLiveAiConfigured,
+  languageDisplayLabel,
+  runBrainLive,
+  runBrainReplay,
+  synthesizeSpeech,
+  toBcp47,
+  transcribeAudio,
+} from "./brain.ts";
+import {
   MAX_AUDIO_BYTES,
   MAX_AUDIO_SECONDS,
   TTS_SUPPORTED_LANGS,
 } from "./config.ts";
 import { flags } from "./flags.ts";
-import { metrics } from "./metrics.ts";
-import {
-  detectMatchedFunction,
-  runBrainLive,
-  runBrainReplay,
-  synthesizeSpeech,
-  transcribeAudio,
-} from "./brain.ts";
 import { SarvamQuotaError, sharedLimiter } from "./limiter.ts";
+import { metrics } from "./metrics.ts";
 import { store } from "./store.ts";
-import { DegradationLevel, TurnJobResult } from "./types.ts";
+import type { DegradationLevel, TurnJobResult } from "./types.ts";
 
 export interface TurnEnqueueInput {
   gid: string;
@@ -142,7 +147,8 @@ export class TurnWorker {
 
     try {
       let transcript = (input.text || "").trim();
-      let detectedLang = input.languageHint || "en-IN";
+      let detectedLang = input.languageHint || "auto";
+      let sttLabel = "Typed";
 
       // Stage 1: STT
       if (!transcript && input.audioBase64) {
@@ -151,7 +157,8 @@ export class TurnWorker {
           await sharedLimiter.acquireSlot("stt");
           metrics.observeSarvam("stt", "200", 0.15);
           transcript = "Sangeet kitne baje hai?";
-          detectedLang = "hi-IN";
+          detectedLang = "hinglish";
+          sttLabel = "Offline STT";
         } else {
           const sttRes = await transcribeAudio(
             input.audioBase64,
@@ -159,6 +166,7 @@ export class TurnWorker {
           );
           transcript = sttRes.transcript;
           detectedLang = sttRes.language;
+          sttLabel = sttRes.provider === "sarvam" ? "Sarvam STT" : "Gemini STT";
         }
         job.stages.stt_ms = Date.now() - tStt;
       }
@@ -167,28 +175,62 @@ export class TurnWorker {
         throw new Error("No speech or text was detected in your message.");
       }
 
+      const shortLang = detectInputLanguage(transcript, detectedLang);
+      const bcpLang = toBcp47(shortLang);
       job.transcript = transcript;
-      job.detected_language = detectedLang;
+      job.detected_language = shortLang;
+      job.language_label = languageDisplayLabel(shortLang);
 
       // Stage 2: Brain + Grounding Check
       const tBrain = Date.now();
       const card = store.getCard();
       const currentRsvp = store.getRsvp(input.gid);
 
-      const brainRes =
-        mode === "replay"
-          ? (() => {
-              metrics.observeSarvam("chat", "200", 0.25);
-              return runBrainReplay(transcript, detectedLang.slice(0, 2), card, persona);
-            })()
-          : await runBrainLive(transcript, detectedLang, card, currentRsvp, persona);
+      let brainRes;
+      let offlineFallback = false;
+      let chatLabel = "Card fallback";
+      let providerUsed = getActiveAiProvider() as string;
+
+      if (mode === "replay" || !hasLiveAiConfigured()) {
+        metrics.observeSarvam("chat", "200", 0.25);
+        brainRes = runBrainReplay(transcript, shortLang, card, persona);
+        offlineFallback = true;
+        providerUsed = "offline";
+        chatLabel = "Offline card";
+      } else {
+        try {
+          const liveOut = await runBrainLive(
+            transcript,
+            shortLang,
+            card,
+            currentRsvp,
+            persona
+          );
+          brainRes = liveOut;
+          providerUsed = liveOut.provider || getActiveAiProvider();
+          chatLabel = providerUsed === "sarvam" ? "Sarvam chat" : "Gemini chat";
+        } catch (liveErr) {
+          if (liveErr instanceof SarvamQuotaError) {
+            throw liveErr;
+          }
+          console.error(
+            "[HaanJi] live brain fallback:",
+            liveErr instanceof Error ? liveErr.message : String(liveErr)
+          );
+          // Graceful fallback to 5-language card templates if live AI fails
+          brainRes = runBrainReplay(transcript, shortLang, card, persona);
+          offlineFallback = true;
+          providerUsed = "offline";
+          chatLabel = "Offline card";
+        }
+      }
 
       job.stages.brain_ms = Date.now() - tBrain;
       job.answer_text = brainRes.answer_text;
-      job.answer_language = brainRes.answer_language || detectedLang;
+      job.answer_language = brainRes.answer_language || shortLang;
+      job.language_label = languageDisplayLabel(job.answer_language);
       job.grounding_violation = Boolean(brainRes.grounding_violation);
 
-      // Detect matched function for Map & Calendar chips
       const fnId =
         brainRes.matched_function_id ||
         detectMatchedFunction(job.answer_text, card);
@@ -196,14 +238,18 @@ export class TurnWorker {
         ? card.functions.find((f) => f.id === fnId) ?? null
         : null;
 
-      // Track whether a host-added FAQ answered this guest
       if (!job.grounding_violation && !brainRes.unanswered_question) {
         store.recordHostFaqHit(transcript);
       }
       store.recordTurnStats(job.answer_language, level);
+      flags.trackAnswerServed(input.gid);
 
-      // Apply RSVP patch deterministically (require explicit Haan confirm in guest UI when newly capturing RSVP)
-      if (brainRes.rsvp_patch && Object.keys(brainRes.rsvp_patch).length > 0) {
+      const isRsvpIntent = brainRes.intent === "rsvp" || brainRes.intent === "mixed";
+      if (
+        isRsvpIntent &&
+        brainRes.rsvp_patch &&
+        Object.keys(brainRes.rsvp_patch).length > 0
+      ) {
         const mergeRes = store.applyRsvpPatch(input.gid, brainRes.rsvp_patch, {
           confirmed: false,
           householdCode: input.householdCode,
@@ -228,32 +274,69 @@ export class TurnWorker {
         );
       }
 
-      // Stage 3: TTS
-      const normalizedLang = normalizeBcp47(job.answer_language);
-      if (
+      // Stage 3: TTS gated by Flagsmith degradation level, language toggle, and rollout pct
+      const hintLower = (input.languageHint || "").trim().toLowerCase();
+      const explicitUnsupported =
+        hintLower &&
+        hintLower !== "auto" &&
+        !["en", "hi", "hinglish", "kn", "ta"].some((p) => hintLower.startsWith(p))
+          ? input.languageHint!
+          : null;
+      const normalizedLang = normalizeBcp47(explicitUnsupported || bcpLang);
+      const rolloutIncluded = flags.isGuestInVoiceRollout(input.gid);
+      const langVoiceOn = flags.voiceReplyEnabled(normalizedLang);
+      const voiceAllowed =
         level === 0 &&
-        flags.voiceReplyEnabled(normalizedLang) &&
-        TTS_SUPPORTED_LANGS.has(normalizedLang)
-      ) {
+        langVoiceOn &&
+        rolloutIncluded &&
+        TTS_SUPPORTED_LANGS.has(normalizedLang);
+      job.voice_paused = !voiceAllowed;
+
+      let ttsLabel = "Text-only";
+      if (voiceAllowed) {
         const tTts = Date.now();
-        if (mode === "replay") {
+        if (mode === "replay" || !hasLiveAiConfigured()) {
           await sharedLimiter.acquireSlot("tts");
           metrics.observeSarvam("tts", "200", 0.2);
           job.audio_base64 = null;
+          ttsLabel = mode === "replay" ? "Simulated TTS" : "Browser speech";
         } else {
           try {
-            const ttsRes = await synthesizeSpeech(job.answer_text, persona);
+            const ttsRes = await synthesizeSpeech(
+              job.answer_text,
+              persona,
+              normalizedLang
+            );
             job.audio_base64 = ttsRes.audioBase64;
             job.audio_mime = ttsRes.mimeType;
+            ttsLabel = ttsRes.provider === "sarvam" ? "Sarvam TTS" : "Gemini TTS";
           } catch (ttsErr) {
-            job.error =
-              ttsErr instanceof Error ? `Voice skipped: ${ttsErr.message}` : "Voice skipped";
+            const rawMsg = ttsErr instanceof Error ? ttsErr.message : String(ttsErr);
+            console.error("[HaanJi] live TTS fallback:", rawMsg);
+            ttsLabel =
+              rawMsg.includes("429") || rawMsg.includes("RESOURCE_EXHAUSTED")
+                ? "Browser speech (TTS quota reached)"
+                : "Browser speech (TTS fallback)";
           }
         }
         job.stages.tts_ms = Date.now() - tTts;
       } else if (level === 1) {
+        ttsLabel = "Paused (Level 1)";
         job.prerendered_clip = `/prerendered/${persona}_busy_${normalizedLang.slice(0, 2)}`;
+      } else if (!rolloutIncluded || !langVoiceOn) {
+        ttsLabel = "Paused by Flagsmith";
       }
+
+      job.behind_answer = {
+        provider: providerUsed,
+        stt: `${sttLabel} (${shortLang})`,
+        chat: chatLabel,
+        tts: ttsLabel,
+        language: shortLang,
+        tone: persona,
+        level,
+        offline_fallback: offlineFallback,
+      };
 
       job.status = "done";
       job.latency_ms = Date.now() - tStart;

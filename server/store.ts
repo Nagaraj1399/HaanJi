@@ -1,5 +1,5 @@
 import { loadWeddingCard, VALID_FUNCTION_IDS } from "./config.ts";
-import {
+import type {
   DietBreakdown,
   FunctionId,
   GuestRsvp,
@@ -560,6 +560,18 @@ export class WeddingStore {
 
   getAnnouncements(): HostAnnouncement[] {
     return [...this.announcements];
+  }
+
+  resetDemoState(): void {
+    this.card = loadWeddingCard("wedding.yaml");
+    this.rsvps.clear();
+    this.households.clear();
+    this.unanswered = [];
+    this.announcements = [];
+    this.questionsAnsweredCount = 0;
+    this.languagesHeard = new Set<string>(["hinglish", "en-IN"]);
+    this.guestsServedDuringSurge = 0;
+    this.seedInitialDemoData();
   }
 }
 

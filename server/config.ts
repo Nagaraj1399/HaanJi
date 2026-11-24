@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import * as yaml from "js-yaml";
-import { FunctionId, PersonaArm, WeddingCard } from "./types.ts";
+import type { FunctionId, PersonaArm, WeddingCard } from "./types.ts";
 
 export const SARVAM_RPM_HARD_CAP = 55;
 export const MAX_AUDIO_BYTES = 2 * 1024 * 1024; // 2 MB

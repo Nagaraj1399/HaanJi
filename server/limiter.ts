@@ -22,11 +22,16 @@ export class SarvamClientError extends Error {
 
 export class SlidingWindowLimiter {
   private windowTimestamps: number[] = [];
+  private getBudgetFn: () => number;
+  private hardCap: number;
 
   constructor(
-    private getBudgetFn: () => number = () => flags.rpmBudget(),
-    private hardCap: number = SARVAM_RPM_HARD_CAP
-  ) {}
+    getBudgetFn: () => number = () => flags.rpmBudget(),
+    hardCap: number = SARVAM_RPM_HARD_CAP
+  ) {
+    this.getBudgetFn = getBudgetFn;
+    this.hardCap = hardCap;
+  }
 
   tryAcquire(nowMs = Date.now()): boolean {
     const cutoff = nowMs - 60_000;
@@ -120,8 +125,13 @@ export async function callWithRetry<T>(
         );
       }
 
-      // Retry 429 and 5xx at most 2 times
-      if ((status === 429 || status >= 500) && attempt < backoffs.length) {
+      const errMsg = err instanceof Error ? err.message : "";
+      const isDailyQuota =
+        status === 429 &&
+        (errMsg.includes("PerDay") || errMsg.includes("per day limit"));
+
+      // Retry transient 429 and 5xx at most 2 times (skip daily quota limits)
+      if (!isDailyQuota && (status === 429 || status >= 500) && attempt < backoffs.length) {
         const base = backoffs[attempt];
         const jitter = Math.floor(Math.random() * 120);
         attempt += 1;

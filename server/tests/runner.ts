@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { AlerterStateMachine } from "../alerter.ts";
-import { postCheck, runBrainLive, runBrainReplay } from "../brain.ts";
+import { detectInputLanguage, postCheck, runBrainLive, runBrainReplay } from "../brain.ts";
 import { HOST_KEY, loadWeddingCard, OPS_TOKEN, SARVAM_RPM_HARD_CAP } from "../config.ts";
 import { FlagsClient } from "../flags.ts";
 import { callWithRetry, SarvamQuotaError, SlidingWindowLimiter } from "../limiter.ts";
 import { MetricsRegistry } from "../metrics.ts";
 import { getSanitizedOpsState, verifyOpsToken } from "../routes_ops.ts";
 import { computeCatererSummary, mergeRsvp, validateRsvpPatch } from "../store.ts";
-import { FunctionId, GoldenCaseResult, GuestRsvp, TestCaseResult } from "../types.ts";
+import type { FunctionId, GoldenCaseResult, GuestRsvp, TestCaseResult } from "../types.ts";
 import { TurnWorker } from "../worker.ts";
 import { GOLDEN_CASES } from "./golden_cases.ts";
 
@@ -416,6 +416,38 @@ export async function runTrackAUnitTests(): Promise<TestCaseResult[]> {
       assert.equal(res?.status, "done");
       assert.equal((metrics.getTotals().sarvam["tts|200"] || 0) - beforeTts, 0);
       return "Language fr-FR skipped TTS (0 calls) while completing text answer.";
+    })
+  );
+
+  results.push(
+    await runCase("A-U12", suite, "5-language offline templates (Hinglish bug fix) & rel_voice_rollout_pct gating", () => {
+      const card = loadWeddingCard("wedding.yaml");
+      // 1. Hinglish question must answer in Hinglish (not English)
+      const hinglishAns = runBrainReplay("Sangeet kitne baje start hoga aur kahan hai?", "auto", card, "formal");
+      assert.equal(hinglishAns.answer_language, "hinglish");
+      assert.ok(hinglishAns.answer_text.includes("shaam") && hinglishAns.answer_text.includes("mein hai"), `Expected Hinglish reply, got: ${hinglishAns.answer_text}`);
+
+      // 2. Kannada, Tamil, Hindi, English replies match expected script/language
+      const knAns = runBrainReplay("ಮುಹೂರ್ತ ಮತ್ತು ಮದುವೆ ಎಷ್ಟು ಗಂಟೆಗೆ?", "auto", card, "formal");
+      assert.equal(detectInputLanguage(knAns.answer_text), "kn");
+      const taAns = runBrainReplay("முகூர்த்தம் எத்தனை மணிக்கு எங்கே நடைபெறும்?", "auto", card, "formal");
+      assert.equal(detectInputLanguage(taAns.answer_text), "ta");
+      const hiAns = runBrainReplay("मेहंदी और हल्दी किस समय और कहाँ है?", "auto", card, "formal");
+      assert.equal(detectInputLanguage(hiAns.answer_text), "hi");
+      const enAns = runBrainReplay("Where is parking available?", "auto", card, "formal");
+      assert.equal(enAns.answer_language, "en");
+
+      // 3. Voice rollout percentage gating
+      const f = new FlagsClient();
+      f.setVoiceRolloutPct(0);
+      assert.equal(f.isGuestInVoiceRollout("guest-rollout-1"), false);
+      f.setVoiceRolloutPct(100);
+      assert.equal(f.isGuestInVoiceRollout("guest-rollout-1"), true);
+      f.trackAnswerServed("guest-rollout-1");
+      const exp = f.getExperimentSummary();
+      assert.equal(exp.arms.formal.answers + exp.arms.warm.answers, 1);
+
+      return "Hinglish returned Hinglish; HI/KN/TA/EN scripts verified; 0%/100% voice rollout and answer count verified.";
     })
   );
 

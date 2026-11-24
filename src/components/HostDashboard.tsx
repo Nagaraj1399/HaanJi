@@ -229,27 +229,30 @@ export function HostDashboard({
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 space-y-10 text-[#F5EDE1]">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-[#C9A96E]/40">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b hairline-gold">
         <div>
-          <h1 className="font-display text-2xl sm:text-3xl font-semibold text-[#6B1E2E]">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-[#E6CFA3]">
+            Family &amp; Catering Desk
+          </p>
+          <h1 className="mt-1.5 font-display text-3xl sm:text-4xl font-light text-[#F5EDE1]">
             Host Operations Desk
           </h1>
-          <p className="mt-1 text-sm text-[#5C4F46]">
-            Deterministic caterer counts, live unanswered FAQ loop, household invites, and experiment tracking. Refreshes every 3 s.
+          <p className="mt-1.5 text-sm text-[#F5EDE1]/70">
+            Deterministic caterer counts, Family Inbox loop, household invites, and multilingual broadcasts.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           {data?.ops_chip && (
-            <div className="px-3.5 py-2 rounded-xl border border-[#C9A96E]/50 bg-white text-xs font-mono tabular-nums text-[#1F1A17]">
-              Ops Proxy · L{data.ops_chip.level} · {data.ops_chip.rpm_60s} RPM ·{" "}
+            <div className="px-4 py-2 rounded-full border border-[#B8925A]/30 bg-[#14050A]/65 text-xs font-mono tabular-nums text-[#F5EDE1]">
+              Ops · L{data.ops_chip.level} · {data.ops_chip.rpm_60s} RPM ·{" "}
               <span
                 className={
                   data.ops_chip.sarvam_429_last_60s > 0
-                    ? "text-[#6B1E2E] font-semibold"
-                    : "text-[#2F6B4F]"
+                    ? "text-[#C98A8A] font-semibold"
+                    : "text-[#8FB39A]"
                 }
               >
                 {data.ops_chip.sarvam_429_last_60s} 429s/60s
@@ -259,17 +262,17 @@ export function HostDashboard({
         </div>
       </div>
 
-      {/* Host Lock Gate (HttpOnly signed cookie auth, zero literal fallback token in client bundle) */}
+      {/* Host Lock Gate */}
       {locked && !data && (
-        <section className="max-w-lg mx-auto rounded-2xl border border-[#C9A96E]/60 bg-white p-6 sm:p-8 space-y-5">
+        <section className="max-w-lg mx-auto glass-card p-6 sm:p-8 space-y-5">
           <div className="flex items-start gap-3">
-            <Lock className="w-5 h-5 text-[#6B1E2E] mt-0.5 shrink-0" />
+            <Lock className="w-5 h-5 text-[#E6CFA3] mt-0.5 shrink-0" strokeWidth={1.5} />
             <div>
-              <h2 className="font-display text-xl font-semibold text-[#1F1A17]">
-                Host Desk Locked (403 Protected)
+              <h2 className="font-display text-2xl font-light text-[#F5EDE1]">
+                Host Desk Locked
               </h2>
-              <p className="mt-1 text-sm text-[#5C4F46]">
-                All <code className="font-mono text-xs">/api/host/*</code> routes reject unauthenticated requests with HTTP 403. Unlock via your startup Host Key or start a signed preview session cookie.
+              <p className="mt-1 text-sm text-[#F5EDE1]/70">
+                Protected <code className="font-mono text-xs text-[#E6CFA3]">/api/host/*</code> routes require authentication. Unlock with your Host Key or start a preview session.
               </p>
             </div>
           </div>
@@ -286,26 +289,26 @@ export function HostDashboard({
               value={enteredKey}
               onChange={(e) => setEnteredKey(e.target.value)}
               placeholder="Enter startup HOST_KEY..."
-              className="flex-1 min-h-[44px] rounded-xl border border-[#C9A96E]/60 bg-[#FBF7F0] px-3.5 font-mono text-xs text-[#1F1A17]"
+              className="flex-1 min-h-[44px] rounded-xl border border-[#B8925A]/35 bg-[#14050A]/80 px-3.5 font-mono text-xs text-[#F5EDE1] placeholder:text-[#F5EDE1]/40"
             />
             <button
               type="submit"
               disabled={unlocking || !enteredKey.trim()}
-              className="min-h-[44px] px-4 rounded-xl bg-[#1F1A17] text-white text-xs font-semibold hover:bg-[#332B27] disabled:opacity-50"
+              className="min-h-[44px] px-4 rounded-xl border border-[#B8925A] text-[#F5EDE1] text-xs font-semibold hover:bg-[#B8925A]/15 disabled:opacity-45"
             >
               Unlock Key
             </button>
           </form>
 
-          <div className="pt-4 border-t border-[#C9A96E]/35 flex items-center justify-between gap-4">
-            <span className="text-xs text-[#5C4F46]">
-              Demo preview environment? Issue an <code className="font-mono">HttpOnly</code> host session cookie:
+          <div className="pt-4 border-t hairline-gold flex items-center justify-between gap-4">
+            <span className="text-xs text-[#F5EDE1]/65">
+              Demo preview environment? Issue an <code className="font-mono text-[#E6CFA3]">HttpOnly</code> session cookie:
             </span>
             <button
               type="button"
               disabled={unlocking}
               onClick={() => unlockHostSession({ previewDemo: true })}
-              className="min-h-[44px] px-4 rounded-xl bg-[#6B1E2E] text-white text-xs font-semibold hover:bg-[#541724] inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
+              className="min-h-[44px] px-5 rounded-full bg-[#F5EDE1] text-[#14050A] text-xs font-semibold hover:bg-[#E6CFA3] inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
             >
               <Unlock className="w-3.5 h-3.5" />
               <span>Unlock Host Desk</span>
@@ -315,7 +318,7 @@ export function HostDashboard({
       )}
 
       {actionMsg && (
-        <div className="rounded-xl border border-[#2F6B4F]/40 bg-white px-4 py-3 text-sm text-[#2F6B4F] flex items-center gap-2">
+        <div className="rounded-2xl border border-[#8FB39A]/40 bg-[#14050A]/75 px-4 py-3 text-sm text-[#8FB39A] flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{actionMsg}</span>
         </div>
@@ -323,36 +326,42 @@ export function HostDashboard({
 
       {data && (
         <>
-          {/* Caterer Summary Banner + CSV & WhatsApp Exports */}
-          <section className="rounded-2xl border border-[#C9A96E]/45 bg-white p-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
+          {/* Caterer Summary */}
+          <section className="glass-card p-6 sm:p-8">
+            <div className="flex flex-wrap items-start justify-between gap-6">
               <div>
-                <p className="text-xs font-medium text-[#5C4F46]">
-                  Deterministic Summation (Zero LLM Arithmetic)
+                <p className="text-[11px] uppercase tracking-[0.2em] text-[#E6CFA3]">
+                  Deterministic Summation
                 </p>
-                <h2 className="mt-1 font-display text-xl sm:text-2xl font-semibold text-[#1F1A17]">
+                <h2 className="mt-1.5 font-display text-2xl sm:text-3xl font-light text-[#F5EDE1]">
                   {data.caterer.caterer_line}
                 </h2>
-                <p className="mt-1 text-sm text-[#8A4F09] font-medium">
+                <p className="mt-1.5 text-sm text-[#E6CFA3] font-medium">
                   {data.caterer.unconfirmed_line}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-6 text-right font-mono tabular-nums">
                 <div>
-                  <p className="text-xs font-sans text-[#5C4F46]">Confirmed Parties</p>
-                  <p className="text-xl font-semibold text-[#1F1A17]">
+                  <p className="text-[11px] font-sans uppercase tracking-[0.16em] text-[#F5EDE1]/65">
+                    Confirmed Parties
+                  </p>
+                  <p className="text-2xl font-light text-[#F5EDE1]">
                     {data.caterer.confirmed_parties}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs font-sans text-[#5C4F46]">Needs Room</p>
-                  <p className="text-xl font-semibold text-[#1F1A17]">
+                  <p className="text-[11px] font-sans uppercase tracking-[0.16em] text-[#F5EDE1]/65">
+                    Needs Room
+                  </p>
+                  <p className="text-2xl font-light text-[#F5EDE1]">
                     {data.caterer.needs_room_count}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs font-sans text-[#5C4F46]">Declined</p>
-                  <p className="text-xl font-semibold text-[#5C4F46]">
+                  <p className="text-[11px] font-sans uppercase tracking-[0.16em] text-[#F5EDE1]/65">
+                    Declined
+                  </p>
+                  <p className="text-2xl font-light text-[#F5EDE1]/65">
                     {data.caterer.declined_parties}
                   </p>
                 </div>
@@ -364,7 +373,7 @@ export function HostDashboard({
                       "Copied WhatsApp-ready caterer summary to clipboard."
                     )
                   }
-                  className="min-h-[44px] px-4 rounded-xl bg-[#2F6B4F] text-white font-sans text-xs font-semibold hover:bg-[#24543e] inline-flex items-center gap-1.5"
+                  className="min-h-[44px] px-5 rounded-full bg-[#F5EDE1] text-[#14050A] font-sans text-xs font-semibold hover:bg-[#E6CFA3] inline-flex items-center gap-1.5"
                 >
                   <Copy className="w-3.5 h-3.5" />
                   <span>Copy WhatsApp Summary</span>
@@ -372,46 +381,45 @@ export function HostDashboard({
               </div>
             </div>
 
-            {/* Function & Diet Breakdown Table */}
             <div className="mt-6 overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-[#C9A96E]/35 text-xs font-medium text-[#5C4F46]">
-                    <th className="py-2.5 pr-4">Function</th>
-                    <th className="py-2.5 px-4 text-right">Confirmed</th>
-                    <th className="py-2.5 px-4 text-right">Unconfirmed Range</th>
-                    <th className="py-2.5 px-4 text-right">Veg</th>
-                    <th className="py-2.5 px-4 text-right">Jain</th>
-                    <th className="py-2.5 px-4 text-right">Non-Veg</th>
-                    <th className="py-2.5 px-4 text-right">No Onion/Garlic</th>
-                    <th className="py-2.5 pl-4 text-right">Export</th>
+                  <tr className="border-b hairline-gold text-[11px] uppercase tracking-[0.16em] text-[#E6CFA3]">
+                    <th className="py-3 pr-4 font-medium">Function</th>
+                    <th className="py-3 px-4 text-right font-medium">Confirmed</th>
+                    <th className="py-3 px-4 text-right font-medium">Unconfirmed Range</th>
+                    <th className="py-3 px-4 text-right font-medium">Veg</th>
+                    <th className="py-3 px-4 text-right font-medium">Jain</th>
+                    <th className="py-3 px-4 text-right font-medium">Non-Veg</th>
+                    <th className="py-3 px-4 text-right font-medium">No Onion/Garlic</th>
+                    <th className="py-3 pl-4 text-right font-medium">Export</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#C9A96E]/25 text-sm">
+                <tbody className="divide-y divide-[#B8925A]/15 text-sm">
                   {Object.values(data.caterer.by_function).map((fn) => (
-                    <tr key={fn.id} className="hover:bg-[#FBF7F0]">
-                      <td className="py-3 pr-4 font-medium text-[#1F1A17]">{fn.name}</td>
-                      <td className="py-3 px-4 text-right font-mono tabular-nums font-semibold text-[#1F1A17]">
+                    <tr key={fn.id} className="hover:bg-[#B8925A]/5">
+                      <td className="py-3.5 pr-4 font-medium text-[#F5EDE1]">{fn.name}</td>
+                      <td className="py-3.5 px-4 text-right font-mono tabular-nums font-semibold text-[#8FB39A]">
                         {fn.confirmed_headcount}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono tabular-nums text-[#8A4F09]">
+                      <td className="py-3.5 px-4 text-right font-mono tabular-nums text-[#E6CFA3]">
                         {fn.unconfirmed_max > 0
                           ? `+ ${fn.unconfirmed_min} to ${fn.unconfirmed_max}`
                           : "0"}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono tabular-nums text-[#5C4F46]">
+                      <td className="py-3.5 px-4 text-right font-mono tabular-nums text-[#F5EDE1]/75">
                         {fn.diet.veg}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono tabular-nums text-[#5C4F46]">
+                      <td className="py-3.5 px-4 text-right font-mono tabular-nums text-[#F5EDE1]/75">
                         {fn.diet.jain}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono tabular-nums text-[#5C4F46]">
+                      <td className="py-3.5 px-4 text-right font-mono tabular-nums text-[#F5EDE1]/75">
                         {fn.diet.nonveg}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono tabular-nums text-[#5C4F46]">
+                      <td className="py-3.5 px-4 text-right font-mono tabular-nums text-[#F5EDE1]/75">
                         {fn.diet.no_onion_garlic}
                       </td>
-                      <td className="py-3 pl-4 text-right">
+                      <td className="py-3.5 pl-4 text-right">
                         <a
                           href={
                             enteredKey
@@ -419,7 +427,7 @@ export function HostDashboard({
                               : `/api/host/csv/${fn.id}`
                           }
                           download={`haanji-${fn.id}.csv`}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#C9A96E]/50 text-xs font-medium text-[#6B1E2E] hover:bg-white whitespace-nowrap"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#B8925A]/45 text-xs text-[#E6CFA3] hover:bg-[#B8925A]/15 whitespace-nowrap"
                         >
                           <Download className="w-3 h-3" />
                           <span>CSV</span>
@@ -433,31 +441,29 @@ export function HostDashboard({
           </section>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            {/* Left Column: Unanswered Questions + Households */}
             <div className="lg:col-span-7 space-y-8">
-              <section className="rounded-2xl border border-[#C9A96E]/45 bg-white p-6">
-                <div className="flex items-baseline justify-between gap-2 pb-4 border-b border-[#C9A96E]/35">
-                  <div>
-                    <h2 className="font-display text-lg font-semibold text-[#1F1A17]">
-                      Unanswered Questions ({data.unanswered.filter((u) => !u.resolved).length} open)
-                    </h2>
-                    <p className="text-xs text-[#5C4F46]">
-                      Questions blocked by the grounding guard or absent from the card. Answer once to teach HaanJi immediately.
-                    </p>
-                  </div>
+              {/* Unanswered Questions */}
+              <section className="glass-card p-6 sm:p-8">
+                <div className="pb-4 border-b hairline-gold">
+                  <h2 className="font-display text-2xl font-light text-[#F5EDE1]">
+                    Family Inbox ({data.unanswered.filter((u) => !u.resolved).length} open)
+                  </h2>
+                  <p className="mt-1 text-xs text-[#F5EDE1]/65">
+                    Questions absent from the wedding card. Answer once to teach HaanJi immediately.
+                  </p>
                 </div>
 
                 {data.unanswered.length === 0 ? (
-                  <div className="py-10 text-center text-sm text-[#5C4F46]">
-                    No unanswered guest questions yet. Ask &ldquo;Mehendi kitne baje khatam hogi?&rdquo; in Guest Concierge to trigger this live loop.
+                  <div className="py-10 text-center text-sm text-[#F5EDE1]/65">
+                    No unanswered guest questions yet.
                   </div>
                 ) : (
-                  <div className="divide-y divide-[#C9A96E]/25">
+                  <div className="divide-y divide-[#B8925A]/15">
                     {data.unanswered.map((uq) => (
                       <div key={uq.id} className="py-4 space-y-2.5">
                         <div className="flex flex-wrap items-baseline justify-between gap-2">
-                          <p className="text-sm font-medium text-[#1F1A17]">{uq.question}</p>
-                          <span className="font-mono text-xs text-[#5C4F46]">
+                          <p className="text-sm font-medium text-[#F5EDE1]">{uq.question}</p>
+                          <span className="font-mono text-xs text-[#E6CFA3]/80">
                             {uq.language} · {uq.reason} ·{" "}
                             {new Date(uq.created_at).toLocaleTimeString()}
                           </span>
@@ -465,10 +471,10 @@ export function HostDashboard({
 
                         {uq.resolved ? (
                           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                            <p className="text-[#2F6B4F] font-medium">
+                            <p className="text-[#8FB39A] font-medium">
                               Added to card: &ldquo;{uq.added_answer}&rdquo;
                             </p>
-                            <span className="font-mono text-[#6B1E2E] font-semibold">
+                            <span className="font-mono text-[#E6CFA3]">
                               Answered after adding: {uq.answered_after_adding} guests
                             </span>
                           </div>
@@ -481,12 +487,12 @@ export function HostDashboard({
                                 setDraftAnswers((prev) => ({ ...prev, [uq.id]: e.target.value }))
                               }
                               placeholder="Type official host answer to add to wedding card..."
-                              className="flex-1 min-h-[44px] rounded-xl border border-[#C9A96E]/60 bg-white px-3 text-xs text-[#1F1A17]"
+                              className="flex-1 min-h-[44px] rounded-xl border border-[#B8925A]/35 bg-[#14050A]/80 px-3 text-xs text-[#F5EDE1] placeholder:text-[#F5EDE1]/40"
                             />
                             <button
                               type="button"
                               onClick={() => handleAddToCard(uq.id)}
-                              className="min-h-[44px] px-4 rounded-xl bg-[#6B1E2E] text-white text-xs font-semibold hover:bg-[#541724] inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                              className="min-h-[44px] px-4 rounded-full bg-[#F5EDE1] text-[#14050A] text-xs font-semibold hover:bg-[#E6CFA3] inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
                             >
                               <Plus className="w-3.5 h-3.5" />
                               <span>Answer once</span>
@@ -499,49 +505,47 @@ export function HostDashboard({
                 )}
               </section>
 
-              {/* Households Invite Links & WhatsApp Nudge */}
-              <section className="rounded-2xl border border-[#C9A96E]/45 bg-white p-6">
-                <div className="flex items-center justify-between gap-2 pb-4 border-b border-[#C9A96E]/35">
-                  <div>
-                    <h2 className="font-display text-lg font-semibold text-[#1F1A17] flex items-center gap-2">
-                      <Users className="w-4 h-4 text-[#6B1E2E]" />
-                      <span>Households &amp; Personalized Invite Links</span>
-                    </h2>
-                    <p className="text-xs text-[#5C4F46]">
-                      Links pre-fill family greetings and default elder mode for senior relatives.
-                    </p>
-                  </div>
+              {/* Households */}
+              <section className="glass-card p-6 sm:p-8">
+                <div className="pb-4 border-b hairline-gold">
+                  <h2 className="font-display text-2xl font-light text-[#F5EDE1] flex items-center gap-2">
+                    <Users className="w-4 h-4 text-[#E6CFA3]" strokeWidth={1.5} />
+                    <span>Households &amp; Personalized Invite Links</span>
+                  </h2>
+                  <p className="mt-1 text-xs text-[#F5EDE1]/65">
+                    Links pre-fill family greetings and Elder Mode defaults for senior relatives.
+                  </p>
                 </div>
 
-                <div className="mt-3 overflow-x-auto">
+                <div className="mt-4 overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="border-b border-[#C9A96E]/35 text-[#5C4F46]">
-                        <th className="py-2 pr-3">Household</th>
-                        <th className="py-2 px-2">Code</th>
-                        <th className="py-2 px-2">Mode</th>
-                        <th className="py-2 px-2">Status</th>
-                        <th className="py-2 pl-2 text-right">Actions</th>
+                      <tr className="border-b hairline-gold text-[11px] uppercase tracking-[0.14em] text-[#E6CFA3]">
+                        <th className="py-2.5 pr-3 font-medium">Household</th>
+                        <th className="py-2.5 px-2 font-medium">Code</th>
+                        <th className="py-2.5 px-2 font-medium">Mode</th>
+                        <th className="py-2.5 px-2 font-medium">Status</th>
+                        <th className="py-2.5 pl-2 text-right font-medium">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#C9A96E]/25">
+                    <tbody className="divide-y divide-[#B8925A]/15">
                       {(data.households || []).map((h) => (
-                        <tr key={h.code} className="hover:bg-[#FBF7F0]">
-                          <td className="py-3 pr-3 font-medium text-[#1F1A17]">
+                        <tr key={h.code} className="hover:bg-[#B8925A]/5">
+                          <td className="py-3 pr-3 font-medium text-[#F5EDE1]">
                             {h.family_name}
                           </td>
-                          <td className="py-3 px-2 font-mono text-[#6B1E2E]">{h.code}</td>
-                          <td className="py-3 px-2 text-[#5C4F46]">
+                          <td className="py-3 px-2 font-mono text-[#E6CFA3]">{h.code}</td>
+                          <td className="py-3 px-2 text-[#F5EDE1]/70">
                             {h.preferred_language} · {h.age_band}
                           </td>
                           <td className="py-3 px-2 capitalize font-medium">
                             <span
                               className={
                                 h.rsvp_status === "confirmed"
-                                  ? "text-[#2F6B4F]"
+                                  ? "text-[#8FB39A]"
                                   : h.rsvp_status === "tentative"
-                                    ? "text-[#8A4F09]"
-                                    : "text-[#6B1E2E]"
+                                    ? "text-[#E6CFA3]"
+                                    : "text-[#C98A8A]"
                               }
                             >
                               {h.rsvp_status}
@@ -553,7 +557,7 @@ export function HostDashboard({
                               <button
                                 type="button"
                                 onClick={() => onOpenHousehold(h.code)}
-                                className="px-2.5 py-1.5 rounded-lg border border-[#C9A96E]/60 text-[#1F1A17] hover:bg-white font-medium"
+                                className="px-3 py-1.5 rounded-full border border-[#B8925A]/45 text-[#F5EDE1] hover:bg-[#B8925A]/15"
                               >
                                 Preview Link
                               </button>
@@ -566,7 +570,7 @@ export function HostDashboard({
                                   `Copied WhatsApp nudge for ${h.family_name} (${h.preferred_language}).`
                                 )
                               }
-                              className="px-2.5 py-1.5 rounded-lg bg-[#FBF7F0] border border-[#C9A96E]/60 text-[#6B1E2E] hover:bg-white font-medium"
+                              className="px-3 py-1.5 rounded-full border border-[#B8925A]/30 bg-[#14050A]/65 text-[#E6CFA3] hover:bg-[#B8925A]/15"
                             >
                               Copy Nudge
                             </button>
@@ -579,37 +583,36 @@ export function HostDashboard({
               </section>
             </div>
 
-            {/* Right Column: Honest Experiment Panel & Multilingual Host Broadcast */}
             <div className="lg:col-span-5 space-y-8">
-              <section className="rounded-2xl border border-[#C9A96E]/45 bg-white p-6">
-                <h2 className="font-display text-lg font-semibold text-[#1F1A17]">
-                  Voice Persona Experiment (<code className="font-mono text-sm">exp_voice_persona</code>)
+              <section className="glass-card p-6 sm:p-8">
+                <h2 className="font-display text-2xl font-light text-[#F5EDE1]">
+                  Voice Persona Experiment (<code className="font-mono text-sm text-[#E6CFA3]">exp_voice_persona</code>)
                 </h2>
-                <p className="mt-1 text-xs text-[#6B1E2E] font-medium">
+                <p className="mt-1.5 text-xs text-[#E6CFA3] font-medium">
                   {data.experiment.honest_reading}
                 </p>
-                <p className="mt-1 text-xs text-[#5C4F46]">{data.experiment.flagsmith_note}</p>
+                <p className="mt-1 text-xs text-[#F5EDE1]/65">{data.experiment.flagsmith_note}</p>
 
-                <div className="mt-4 divide-y divide-[#C9A96E]/35 border border-[#C9A96E]/45 rounded-xl">
+                <div className="mt-4 divide-y divide-[#B8925A]/15 border border-[#B8925A]/20 rounded-xl bg-[#14050A]/55">
                   {(["formal", "warm"] as const).map((arm) => {
                     const m = data.experiment.arms[arm];
                     return (
-                      <div key={arm} className="p-3.5 flex items-center justify-between">
+                      <div key={arm} className="p-4 flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-semibold text-[#1F1A17] capitalize">
+                          <p className="text-sm font-medium text-[#F5EDE1] capitalize">
                             {arm} persona
                           </p>
-                          <p className="text-xs text-[#5C4F46]">
+                          <p className="text-xs text-[#F5EDE1]/65">
                             {arm === "formal"
                               ? "Respectful aap · Kore voice"
                               : "Family-style Hinglish · Puck voice"}
                           </p>
                         </div>
                         <div className="text-right font-mono text-xs tabular-nums">
-                          <p className="text-[#1F1A17] font-semibold">
+                          <p className="text-[#E6CFA3] font-semibold">
                             {m.conversion_rate_pct}% conv
                           </p>
-                          <p className="text-[#5C4F46]">
+                          <p className="text-[#F5EDE1]/65">
                             {m.completions} / {m.exposures} gids (aband: {m.abandoned})
                           </p>
                         </div>
@@ -619,11 +622,11 @@ export function HostDashboard({
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-[#C9A96E]/45 bg-white p-6">
-                <h2 className="font-display text-lg font-semibold text-[#1F1A17]">
+              <section className="glass-card p-6 sm:p-8">
+                <h2 className="font-display text-2xl font-light text-[#F5EDE1]">
                   Multilingual Host Broadcast
                 </h2>
-                <p className="mt-1 text-xs text-[#5C4F46]">
+                <p className="mt-1 text-xs text-[#F5EDE1]/65">
                   Write in English; HaanJi translates to Hindi, Kannada, and Tamil for guest pages.
                 </p>
                 <form onSubmit={handleBroadcast} className="mt-4 space-y-3">
@@ -632,12 +635,12 @@ export function HostDashboard({
                     value={announcementText}
                     onChange={(e) => setAnnouncementText(e.target.value)}
                     placeholder="e.g., Sangeet doors open at 7:15 PM; shuttle vans depart Taj MG Road at 6:45 PM."
-                    className="w-full rounded-xl border border-[#C9A96E]/60 bg-white p-3 text-sm text-[#1F1A17] focus:outline-none focus:ring-2 focus:ring-[#6B1E2E]"
+                    className="w-full rounded-xl border border-[#B8925A]/35 bg-[#14050A]/80 p-3 text-sm text-[#F5EDE1] placeholder:text-[#F5EDE1]/40"
                   />
                   <button
                     type="submit"
                     disabled={broadcasting || !announcementText.trim()}
-                    className="w-full min-h-[44px] rounded-xl bg-[#6B1E2E] text-white text-xs font-semibold hover:bg-[#541724] disabled:opacity-50 inline-flex items-center justify-center gap-2"
+                    className="w-full min-h-[44px] rounded-full bg-[#F5EDE1] text-[#14050A] text-xs font-semibold uppercase tracking-[0.14em] hover:bg-[#E6CFA3] disabled:opacity-45 inline-flex items-center justify-center gap-2"
                   >
                     <Send className="w-3.5 h-3.5" />
                     <span>{broadcasting ? "Translating & Broadcasting..." : "Broadcast to Guests"}</span>
@@ -645,9 +648,11 @@ export function HostDashboard({
                 </form>
 
                 {data.announcements.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-[#C9A96E]/35 space-y-2 text-xs">
-                    <p className="font-medium text-[#5C4F46]">Last sent translations:</p>
-                    <div className="grid grid-cols-1 gap-1.5 bg-[#FBF7F0] rounded-xl p-3 border border-[#C9A96E]/35 text-[#1F1A17]">
+                  <div className="mt-4 pt-4 border-t hairline-gold space-y-2 text-xs">
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-[#E6CFA3]">
+                      Last sent translations
+                    </p>
+                    <div className="grid grid-cols-1 gap-1.5 bg-[#14050A]/65 rounded-xl p-3.5 border border-[#B8925A]/20 text-[#F5EDE1]/85 indic-relaxed">
                       <p><strong>EN:</strong> {data.announcements[0].english}</p>
                       <p><strong>HI:</strong> {data.announcements[0].translations?.hi}</p>
                       <p><strong>KN:</strong> {data.announcements[0].translations?.kn}</p>

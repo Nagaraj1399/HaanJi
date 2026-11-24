@@ -1,19 +1,35 @@
 @import "tailwindcss";
 
 @theme {
-  --font-display: "Fraunces", Georgia, serif;
+  --font-display: "Cormorant Garamond", Georgia, serif;
   --font-sans: "Plus Jakarta Sans", "Noto Sans Devanagari", "Noto Sans Kannada", "Noto Sans Tamil", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
 @layer base {
-  body {
-    font-family: var(--font-sans);
-    background-color: #fbf7f0;
-    color: #1f1a17;
+  html {
+    scroll-behavior: smooth;
+    background-color: #14050a;
+    color: #f5ede1;
   }
 
-  h1, h2, h3, .font-display {
+  body {
+    font-family: var(--font-sans);
+    background-color: #14050a;
+    background-image: radial-gradient(
+      ellipse 85% 75% at 72% 30%,
+      #2b0a12 0%,
+      #1b060c 48%,
+      #14050a 100%
+    );
+    background-attachment: fixed;
+    color: #f5ede1;
+  }
+
+  h1,
+  h2,
+  h3,
+  .font-display {
     font-family: var(--font-display);
     text-wrap: balance;
   }
@@ -21,29 +37,153 @@
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }
+
+  *:focus-visible {
+    outline: 1px solid #b8925a;
+    outline-offset: 2px;
+  }
 }
 
-@keyframes pulse-ring {
-  0% {
-    transform: scale(0.96);
-    opacity: 0.7;
+.glass-card {
+  background: rgba(20, 5, 10, 0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(184, 146, 90, 0.2);
+  border-radius: 16px;
+}
+
+.hairline-gold {
+  border-color: rgba(184, 146, 90, 0.25);
+}
+
+.indic-relaxed {
+  line-height: 1.65;
+}
+
+.film-grain-overlay {
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+}
+
+.elder-root {
+  font-size: 20px;
+  line-height: 1.65;
+}
+
+@keyframes hero-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
   }
-  70% {
-    transform: scale(1.12);
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes urli-rise {
+  from {
+    opacity: 0.2;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 0.92;
+    transform: translateY(0);
+  }
+}
+
+@keyframes jaali-breath {
+  0% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes petal-drift {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(-12px, 14px, 0) rotate(4deg);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+}
+
+@keyframes lang-marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes mic-ring-slow {
+  0% {
+    transform: scale(0.98);
+    opacity: 0.85;
+  }
+  80% {
+    transform: scale(1.16);
     opacity: 0;
   }
   100% {
-    transform: scale(1.12);
+    transform: scale(1.16);
     opacity: 0;
   }
 }
 
-.marigold-pulse {
-  animation: pulse-ring 2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+.animate-hero-line-1 {
+  animation: hero-fade-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+}
+
+.animate-hero-line-2 {
+  animation: hero-fade-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.24s both;
+}
+
+.animate-hero-card {
+  animation: hero-fade-up 1s cubic-bezier(0.22, 1, 0.36, 1) 0.45s both;
+}
+
+.animate-urli-rise {
+  animation: urli-rise 1.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-jaali-breath {
+  animation: jaali-breath 6s ease-in-out infinite alternate;
+}
+
+.animate-petal-drift {
+  animation: petal-drift 24s ease-in-out infinite;
+}
+
+.animate-lang-marquee {
+  animation: lang-marquee 34s linear infinite;
+}
+
+.animate-mic-ring {
+  animation: mic-ring-slow 2.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .marigold-pulse {
-    animation: none;
+  html {
+    scroll-behavior: auto;
+  }
+  .animate-hero-line-1,
+  .animate-hero-line-2,
+  .animate-hero-card,
+  .animate-urli-rise,
+  .animate-jaali-breath,
+  .animate-petal-drift,
+  .animate-lang-marquee,
+  .animate-mic-ring {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
   }
 }

@@ -121,6 +121,18 @@ export interface TurnJobResult {
   rsvp_warnings: string[];
   matched_function: WeddingFunction | null;
   grounding_violation: boolean;
+  language_label?: string;
+  voice_paused?: boolean;
+  behind_answer?: {
+    provider: string;
+    stt: string;
+    chat: string;
+    tts: string;
+    language: string;
+    tone: PersonaArm;
+    level: DegradationLevel;
+    offline_fallback: boolean;
+  };
   latency_ms: number;
   stages: {
     stt_ms: number;

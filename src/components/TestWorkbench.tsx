@@ -230,16 +230,16 @@ export function TestWorkbench() {
   const renderTestList = (list: TestCaseResult[] | null, onRun: () => void, emptyLabel: string) => {
     if (!list) {
       return (
-        <div className="py-12 text-center border border-[#C9A96E]/45 rounded-2xl bg-white">
-          <p className="text-sm text-[#5C4F46] max-w-2xl mx-auto px-4">{emptyLabel}</p>
+        <div className="py-12 text-center glass-card">
+          <p className="text-sm text-[#F5EDE1]/70 max-w-2xl mx-auto px-4">{emptyLabel}</p>
           <button
             type="button"
             onClick={onRun}
             disabled={running !== null}
-            className="mt-4 min-h-[44px] px-5 rounded-xl bg-[#6B1E2E] text-white text-xs font-semibold hover:bg-[#541724] inline-flex items-center gap-2"
+            className="mt-5 min-h-[44px] px-6 rounded-full bg-[#F5EDE1] text-[#14050A] text-xs font-semibold hover:bg-[#E6CFA3] inline-flex items-center gap-2"
           >
             <Play className="w-3.5 h-3.5" />
-            Run Suite Now
+            <span>Run Suite Now</span>
           </button>
         </div>
       );
@@ -247,39 +247,39 @@ export function TestWorkbench() {
 
     const passedCount = list.filter((x) => x.passed).length;
     return (
-      <div className="rounded-2xl border border-[#C9A96E]/45 bg-white overflow-hidden">
-        <div className="px-6 py-4 bg-[#FBF7F0] border-b border-[#C9A96E]/35 flex items-center justify-between">
-          <span className="text-sm font-semibold text-[#1F1A17]">
+      <div className="glass-card overflow-hidden">
+        <div className="px-6 py-4 bg-[#14050A]/65 border-b hairline-gold flex items-center justify-between">
+          <span className="text-sm font-medium text-[#F5EDE1]">
             {passedCount} / {list.length} assertions passed
           </span>
           <button
             type="button"
             onClick={onRun}
             disabled={running !== null}
-            className="h-9 px-3.5 rounded-lg border border-zinc-200 bg-white text-xs font-medium text-zinc-800 hover:bg-zinc-50 inline-flex items-center gap-1.5"
+            className="min-h-[36px] px-4 rounded-full border border-[#B8925A]/45 text-xs text-[#E6CFA3] hover:bg-[#B8925A]/15 inline-flex items-center gap-1.5"
           >
             <Play className="w-3.5 h-3.5" />
-            Re-run
+            <span>Re-run</span>
           </button>
         </div>
-        <div className="divide-y divide-zinc-200">
+        <div className="divide-y divide-[#B8925A]/15">
           {list.map((tc) => (
             <div key={tc.id} className="px-6 py-4 flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
                 {tc.passed ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-700 mt-0.5 shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-[#8FB39A] mt-0.5 shrink-0" />
                 ) : (
-                  <XCircle className="w-4 h-4 text-red-700 mt-0.5 shrink-0" />
+                  <XCircle className="w-4 h-4 text-[#C98A8A] mt-0.5 shrink-0" />
                 )}
                 <div>
-                  <p className="text-sm font-medium text-zinc-900">
-                    <span className="font-mono text-xs text-zinc-500 mr-2">{tc.id}</span>
+                  <p className="text-sm font-medium text-[#F5EDE1]">
+                    <span className="font-mono text-xs text-[#E6CFA3] mr-2">{tc.id}</span>
                     {tc.name}
                   </p>
-                  <p className="mt-1 text-xs text-zinc-600 font-mono">{tc.details}</p>
+                  <p className="mt-1 text-xs text-[#F5EDE1]/65 font-mono">{tc.details}</p>
                 </div>
               </div>
-              <span className="font-mono text-xs tabular-nums text-zinc-500 whitespace-nowrap">
+              <span className="font-mono text-xs tabular-nums text-[#F5EDE1]/65 whitespace-nowrap">
                 {tc.duration_ms} ms
               </span>
             </div>
@@ -290,14 +290,17 @@ export function TestWorkbench() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 space-y-8 text-[#F5EDE1]">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-zinc-200">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b hairline-gold">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold text-zinc-900">
-            Automated Verification &amp; Golden Set Bench
+          <p className="text-[11px] uppercase tracking-[0.2em] text-[#E6CFA3]">
+            Verification &amp; Golden Set
+          </p>
+          <h1 className="mt-1.5 font-display text-3xl sm:text-4xl font-light text-[#F5EDE1]">
+            Automated Verification &amp; Test Bench
           </h1>
-          <p className="mt-1 text-sm text-zinc-600">
+          <p className="mt-1.5 text-sm text-[#F5EDE1]/70">
             Executes real assertions against HaanJi&rsquo;s brain, deterministic store, rate limiter, alerter state machine, and HTTP security boundaries.
           </p>
         </div>
@@ -307,7 +310,7 @@ export function TestWorkbench() {
             type="button"
             onClick={runAllSuites}
             disabled={running !== null}
-            className="min-h-[44px] px-5 rounded-xl bg-[#6B1E2E] text-white text-xs font-semibold hover:bg-[#541724] disabled:opacity-60 inline-flex items-center gap-2 whitespace-nowrap"
+            className="min-h-[44px] px-5 rounded-full bg-[#F5EDE1] text-[#14050A] text-xs font-semibold hover:bg-[#E6CFA3] disabled:opacity-55 inline-flex items-center gap-2 whitespace-nowrap"
           >
             <Play className="w-3.5 h-3.5" />
             <span>{running === "all" ? "Running All Suites..." : "Run All 5 Suites"}</span>
@@ -317,32 +320,32 @@ export function TestWorkbench() {
             type="button"
             onClick={downloadReport}
             disabled={!aUnit && !golden && !bUnit && !causal && !secTests}
-            className="min-h-[44px] px-4 rounded-xl border border-[#C9A96E]/60 bg-white text-xs font-medium text-[#1F1A17] hover:bg-[#FBF7F0] disabled:opacity-40 inline-flex items-center gap-1.5 whitespace-nowrap"
+            className="min-h-[44px] px-4 rounded-full border border-[#B8925A]/45 text-xs text-[#E6CFA3] hover:bg-[#B8925A]/15 disabled:opacity-40 inline-flex items-center gap-1.5 whitespace-nowrap"
           >
             <Download className="w-3.5 h-3.5" />
-            Export REPORT.md
+            <span>Export REPORT.md</span>
           </button>
         </div>
       </div>
 
-      {/* Sub-navigation Segmented Control */}
+      {/* Sub-navigation */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-1 p-1 bg-[#F3EADF] rounded-xl">
+        <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl border border-[#B8925A]/20 bg-[#14050A]/60">
           {[
             { id: "a-unit", label: `Track A Unit (${aUnit ? `${aUnit.filter((x) => x.passed).length}/${aUnit.length}` : "11"})` },
             { id: "golden", label: `Golden Set (${golden ? `${golden.cases.filter((x) => x.passed).length}/30` : "30"})` },
             { id: "b-unit", label: `Track B Ops Unit (${bUnit ? `${bUnit.filter((x) => x.passed).length}/${bUnit.length}` : "6"})` },
             { id: "causal", label: `Causal Incident Loop (${causal ? (causal.passed ? "PASS" : "FAIL") : "Proof"})` },
-            { id: "security", label: `API & Secret Scan (${secTests ? `${secTests.filter((x) => x.passed).length}/${secTests.length}` : "5"})` },
+            { id: "security", label: `API & Secret Scan (${secTests ? `${secTests.filter((x) => x.passed).length}/${secTests.length}` : "6"})` },
           ].map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setActiveSuite(tab.id as typeof activeSuite)}
-              className={`px-3.5 py-2 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+              className={`px-3.5 py-2 text-xs font-medium rounded-xl transition-colors whitespace-nowrap shrink-0 ${
                 activeSuite === tab.id
-                  ? "bg-white text-[#6B1E2E] shadow-sm font-semibold"
-                  : "text-[#5C4F46] hover:text-[#1F1A17]"
+                  ? "bg-[#F5EDE1] text-[#14050A] font-semibold"
+                  : "text-[#F5EDE1]/70 hover:text-[#E6CFA3]"
               }`}
             >
               {tab.label}
@@ -352,22 +355,26 @@ export function TestWorkbench() {
 
         {activeSuite === "golden" && (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-[#5C4F46]">Evaluator Mode:</span>
-            <div className="flex items-center p-1 bg-[#F3EADF] rounded-lg">
+            <span className="text-xs text-[#F5EDE1]/65">Evaluator Mode:</span>
+            <div className="flex items-center p-1 rounded-xl border border-[#B8925A]/20 bg-[#14050A]/60">
               <button
                 type="button"
                 onClick={() => setGoldenMode("replay")}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md ${
-                  goldenMode === "replay" ? "bg-white text-[#6B1E2E] shadow-sm" : "text-[#5C4F46]"
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg ${
+                  goldenMode === "replay"
+                    ? "bg-[#F5EDE1] text-[#14050A]"
+                    : "text-[#F5EDE1]/70"
                 }`}
               >
-                Offline Fallback (Not AI)
+                Offline Fallback
               </button>
               <button
                 type="button"
                 onClick={() => setGoldenMode("live")}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md ${
-                  goldenMode === "live" ? "bg-white text-[#6B1E2E] shadow-sm" : "text-[#5C4F46]"
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg ${
+                  goldenMode === "live"
+                    ? "bg-[#F5EDE1] text-[#14050A]"
+                    : "text-[#F5EDE1]/70"
                 }`}
               >
                 Live Gemini API
@@ -378,12 +385,11 @@ export function TestWorkbench() {
       </div>
 
       {errorMsg && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+        <div className="rounded-2xl border border-[#C98A8A]/50 bg-[#14050A]/80 px-4 py-3 text-sm text-[#C98A8A]">
           {errorMsg}
         </div>
       )}
 
-      {/* Suite Views */}
       {activeSuite === "a-unit" &&
         renderTestList(
           aUnit,
@@ -408,18 +414,18 @@ export function TestWorkbench() {
       {activeSuite === "golden" && (
         <div className="space-y-6">
           {!golden ? (
-            <div className="py-12 text-center border border-[#C9A96E]/45 rounded-2xl bg-white">
-              <p className="text-sm text-[#5C4F46]">
+            <div className="py-12 text-center glass-card">
+              <p className="text-sm text-[#F5EDE1]/70">
                 Evaluates 30 labelled multilingual cases (8 factual, 6 RSVP, 6 unanswerable, 4 injection, 4 mixed, 2 off-topic) against the frozen wedding card.
               </p>
               <button
                 type="button"
                 onClick={() => runGolden()}
                 disabled={running !== null}
-                className="mt-4 min-h-[44px] px-5 rounded-xl bg-[#6B1E2E] text-white text-xs font-semibold hover:bg-[#541724] inline-flex items-center gap-2"
+                className="mt-5 min-h-[44px] px-6 rounded-full bg-[#F5EDE1] text-[#14050A] text-xs font-semibold hover:bg-[#E6CFA3] inline-flex items-center gap-2"
               >
                 <Play className="w-3.5 h-3.5" />
-                {running === "golden" ? "Evaluating 30 Cases..." : `Run 30-Case Golden Set (${goldenMode})`}
+                <span>{running === "golden" ? "Evaluating 30 Cases..." : `Run 30-Case Golden Set (${goldenMode})`}</span>
               </button>
             </div>
           ) : (
@@ -463,22 +469,22 @@ export function TestWorkbench() {
                     ok: true,
                   },
                 ].map((kpi) => (
-                  <div key={kpi.label} className="rounded-xl border border-zinc-200 bg-white p-4">
-                    <p className="text-xs text-zinc-500">{kpi.label}</p>
+                  <div key={kpi.label} className="glass-card p-4">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-[#E6CFA3]">{kpi.label}</p>
                     <p
-                      className={`mt-1 font-mono text-xl font-semibold tabular-nums ${
-                        kpi.ok ? "text-emerald-700" : "text-red-700"
+                      className={`mt-1.5 font-mono text-xl font-semibold tabular-nums ${
+                        kpi.ok ? "text-[#8FB39A]" : "text-[#C98A8A]"
                       }`}
                     >
                       {kpi.val}
                     </p>
-                    <p className="mt-0.5 text-xs text-zinc-500">{kpi.sub}</p>
+                    <p className="mt-0.5 text-xs text-[#F5EDE1]/65">{kpi.sub}</p>
                   </div>
                 ))}
               </div>
 
-              <div className="rounded-2xl border border-zinc-200 bg-white overflow-hidden">
-                <div className="px-6 py-3.5 bg-[#FAF9F6] border-b border-zinc-200 flex flex-wrap items-center justify-between gap-3">
+              <div className="glass-card overflow-hidden">
+                <div className="px-6 py-4 bg-[#14050A]/65 border-b hairline-gold flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-1.5">
                     {["all", "factual", "rsvp", "unanswerable", "injection", "mixed", "off_topic"].map(
                       (cat) => (
@@ -486,10 +492,10 @@ export function TestWorkbench() {
                           key={cat}
                           type="button"
                           onClick={() => setGoldenFilter(cat)}
-                          className={`px-2.5 py-1 rounded-md text-xs font-medium capitalize ${
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium capitalize ${
                             goldenFilter === cat
-                              ? "bg-zinc-900 text-white"
-                              : "text-zinc-600 hover:bg-zinc-200/70"
+                              ? "bg-[#F5EDE1] text-[#14050A]"
+                              : "text-[#F5EDE1]/70 hover:text-[#E6CFA3]"
                           }`}
                         >
                           {cat.replace("_", " ")}
@@ -501,7 +507,7 @@ export function TestWorkbench() {
                     type="button"
                     onClick={() => runGolden()}
                     disabled={running !== null}
-                    className="h-8 px-3 rounded-lg border border-zinc-200 bg-white text-xs font-medium text-zinc-800 hover:bg-zinc-50"
+                    className="h-9 px-4 rounded-full border border-[#B8925A]/45 text-xs text-[#E6CFA3] hover:bg-[#B8925A]/15"
                   >
                     Re-run ({goldenMode})
                   </button>
@@ -510,7 +516,7 @@ export function TestWorkbench() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="border-b border-zinc-200 text-zinc-500">
+                      <tr className="border-b hairline-gold text-[11px] uppercase tracking-[0.14em] text-[#E6CFA3]">
                         <th className="py-2.5 px-4">ID</th>
                         <th className="py-2.5 px-3">Category</th>
                         <th className="py-2.5 px-3">Lang</th>
@@ -520,24 +526,22 @@ export function TestWorkbench() {
                         <th className="py-2.5 px-4 text-right">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-zinc-200">
+                    <tbody className="divide-y divide-[#B8925A]/15">
                       {golden.cases
                         .filter((c) => goldenFilter === "all" || c.category === goldenFilter)
                         .map((c) => (
-                          <tr key={c.id} className="hover:bg-zinc-50/70 align-top">
-                            <td className="py-3 px-4 font-mono text-zinc-500">{c.id}</td>
-                            <td className="py-3 px-3 capitalize text-zinc-700">{c.category}</td>
-                            <td className="py-3 px-3 font-mono text-zinc-600">{c.language}</td>
-                            <td className="py-3 px-3 text-zinc-900 max-w-xs">{c.input}</td>
-                            <td className="py-3 px-3 font-mono text-zinc-700">
-                              {c.actual_intent}
-                            </td>
-                            <td className="py-3 px-3 text-zinc-600 max-w-sm">{c.answer_text}</td>
+                          <tr key={c.id} className="hover:bg-[#B8925A]/5 align-top">
+                            <td className="py-3 px-4 font-mono text-[#E6CFA3]">{c.id}</td>
+                            <td className="py-3 px-3 capitalize text-[#F5EDE1]/75">{c.category}</td>
+                            <td className="py-3 px-3 font-mono text-[#F5EDE1]/75">{c.language}</td>
+                            <td className="py-3 px-3 text-[#F5EDE1] max-w-xs">{c.input}</td>
+                            <td className="py-3 px-3 font-mono text-[#E6CFA3]">{c.actual_intent}</td>
+                            <td className="py-3 px-3 text-[#F5EDE1]/75 max-w-sm">{c.answer_text}</td>
                             <td className="py-3 px-4 text-right font-mono font-semibold whitespace-nowrap">
                               {c.passed ? (
-                                <span className="text-emerald-700">PASS</span>
+                                <span className="text-[#8FB39A]">PASS</span>
                               ) : (
-                                <span className="text-red-700">FAIL</span>
+                                <span className="text-[#C98A8A]">FAIL</span>
                               )}
                             </td>
                           </tr>
@@ -554,75 +558,78 @@ export function TestWorkbench() {
       {activeSuite === "causal" && (
         <div className="space-y-6">
           {!causal ? (
-            <div className="py-12 text-center border border-[#C9A96E]/45 rounded-2xl bg-white">
-              <p className="text-sm text-[#5C4F46] max-w-2xl mx-auto px-4">
+            <div className="py-12 text-center glass-card">
+              <p className="text-sm text-[#F5EDE1]/70 max-w-2xl mx-auto px-4">
                 Proves the complete causal incident loop: surge &rarr; 429s &rarr; alert &rarr; pending human approval (3x safety checks confirm level=0) &rarr; approve &rarr; 429 drop &ge; 80% &amp; TTS=0 &rarr; resolved &rarr; restore + 2 vs 6 worker scale-out proof.
               </p>
               <button
                 type="button"
                 onClick={runCausalLoop}
                 disabled={running !== null}
-                className="mt-4 min-h-[44px] px-5 rounded-xl bg-[#6B1E2E] text-white text-xs font-semibold hover:bg-[#541724] inline-flex items-center gap-2"
+                className="mt-5 min-h-[44px] px-6 rounded-full bg-[#F5EDE1] text-[#14050A] text-xs font-semibold hover:bg-[#E6CFA3] inline-flex items-center gap-2"
               >
                 <ShieldCheck className="w-4 h-4" />
-                Run Causal Loop &amp; Scale-Out Proof
+                <span>Run Causal Loop &amp; Scale-Out Proof</span>
               </button>
             </div>
           ) : (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="rounded-xl border border-zinc-200 bg-white p-4">
-                  <p className="text-xs text-zinc-500">Safety Invariant</p>
-                  <p className="mt-1 font-mono text-lg font-semibold text-emerald-700">
+                <div className="glass-card p-4">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-[#E6CFA3]">Safety Invariant</p>
+                  <p className="mt-1.5 font-mono text-lg font-semibold text-[#8FB39A]">
                     {causal.safety_invariant_held ? "HELD (0 before approval)" : "VIOLATED"}
                   </p>
                 </div>
-                <div className="rounded-xl border border-zinc-200 bg-white p-4">
-                  <p className="text-xs text-zinc-500">429s Before Approval</p>
-                  <p className="mt-1 font-mono text-xl font-semibold tabular-nums text-red-700">
+                <div className="glass-card p-4">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-[#E6CFA3]">429s Before Approval</p>
+                  <p className="mt-1.5 font-mono text-xl font-semibold tabular-nums text-[#C98A8A]">
                     {causal.comparison_429.before_approval_60s}
                   </p>
                 </div>
-                <div className="rounded-xl border border-zinc-200 bg-white p-4">
-                  <p className="text-xs text-zinc-500">429s After Degrade</p>
-                  <p className="mt-1 font-mono text-xl font-semibold tabular-nums text-emerald-700">
+                <div className="glass-card p-4">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-[#E6CFA3]">429s After Degrade</p>
+                  <p className="mt-1.5 font-mono text-xl font-semibold tabular-nums text-[#8FB39A]">
                     {causal.comparison_429.after_approval_60s} (-{causal.comparison_429.reduction_pct}%)
                   </p>
                 </div>
-                <div className="rounded-xl border border-zinc-200 bg-white p-4">
-                  <p className="text-xs text-zinc-500">TTS After Degrade</p>
-                  <p className="mt-1 font-mono text-xl font-semibold tabular-nums text-zinc-900">
+                <div className="glass-card p-4">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-[#E6CFA3]">TTS After Degrade</p>
+                  <p className="mt-1.5 font-mono text-xl font-semibold tabular-nums text-[#F5EDE1]">
                     {causal.comparison_429.tts_after_degrade} calls
                   </p>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-zinc-200 bg-white overflow-hidden">
-                <div className="px-6 py-3.5 bg-[#FAF9F6] border-b border-zinc-200 flex items-center justify-between">
-                  <span className="text-sm font-semibold text-zinc-900">
+              <div className="glass-card overflow-hidden">
+                <div className="px-6 py-4 bg-[#14050A]/65 border-b hairline-gold flex items-center justify-between">
+                  <span className="text-sm font-medium text-[#F5EDE1]">
                     Causal Timeline Verification
                   </span>
                   <button
                     type="button"
                     onClick={runCausalLoop}
-                    className="h-8 px-3 rounded-lg border border-zinc-200 bg-white text-xs font-medium text-zinc-800 hover:bg-zinc-50"
+                    className="min-h-[36px] px-4 rounded-full border border-[#B8925A]/45 text-xs text-[#E6CFA3] hover:bg-[#B8925A]/15"
                   >
                     Re-run Proof
                   </button>
                 </div>
-                <div className="divide-y divide-zinc-200">
+                <div className="divide-y divide-[#B8925A]/15">
                   {causal.steps.map((s) => (
-                    <div key={s.step} className="px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 text-xs">
+                    <div
+                      key={s.step}
+                      className="px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 text-xs"
+                    >
                       <div className="flex items-center gap-3">
-                        <span className="font-mono tabular-nums text-zinc-500 w-12">
+                        <span className="font-mono tabular-nums text-[#E6CFA3] w-12">
                           +{s.elapsed_s}s
                         </span>
-                        <span className="font-mono font-semibold text-zinc-900 w-36">
+                        <span className="font-mono font-semibold text-[#F5EDE1] w-36">
                           {s.step}
                         </span>
-                        <span className="text-zinc-700">{s.note}</span>
+                        <span className="text-[#F5EDE1]/75">{s.note}</span>
                       </div>
-                      <span className="font-mono tabular-nums text-zinc-600">
+                      <span className="font-mono tabular-nums text-[#E6CFA3]">
                         L{s.level} · {s.rate429_pct}% 429s
                       </span>
                     </div>

@@ -1,4 +1,4 @@
-import { DegradationLevel } from "./types.ts";
+import type { DegradationLevel } from "./types.ts";
 
 interface SarvamBucketEntry {
   ts: number; // ms

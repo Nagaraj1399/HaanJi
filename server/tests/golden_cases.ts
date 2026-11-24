@@ -1,4 +1,4 @@
-import { IntentType, RsvpPatch } from "../types.ts";
+import type { IntentType, RsvpPatch } from "../types.ts";
 
 export interface GoldenCaseSpec {
   id: string;

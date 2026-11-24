@@ -3,39 +3,22 @@ import {
   AlertCircle,
   CalendarPlus,
   Check,
-  Edit3,
-  HelpCircle,
+  ChevronDown,
+  ChevronUp,
   MapPin,
   Mic,
   MicOff,
   Send,
+  Square,
   Volume2,
-  X,
 } from "lucide-react";
 import { downloadFunctionIcs } from "../utils/calendar";
-import { WeddingCardData } from "./WeddingCardDrawer";
-
-interface GuestRsvp {
-  gid: string;
-  household_code?: string | null;
-  household_name?: string | null;
-  attending: boolean | null;
-  headcount: number | null;
-  headcount_range: [number, number] | null;
-  functions: string[];
-  diet: { veg: number; jain: number; nonveg: number; no_onion_garlic: number };
-  needs_room: boolean | null;
-  confirmed: boolean;
-  rsvp_complete: boolean;
-  warnings: string[];
-}
-
-interface HouseholdInfo {
-  code: string;
-  family_name: string;
-  preferred_language: string;
-  age_band: "standard" | "elder";
-}
+import {
+  CapabilitiesSummary,
+  GuestRsvp,
+  HouseholdInfo,
+  WeddingCardData,
+} from "../types/haanji";
 
 interface TurnResult {
   job_id: string;
@@ -45,6 +28,18 @@ interface TurnResult {
   detected_language: string;
   answer_text: string;
   answer_language: string;
+  language_label?: string;
+  voice_paused?: boolean;
+  behind_answer?: {
+    provider: string;
+    stt: string;
+    chat: string;
+    tts: string;
+    language: string;
+    tone: string;
+    level: number;
+    offline_fallback: boolean;
+  };
   audio_base64: string | null;
   audio_mime: string | null;
   prerendered_clip: string | null;
@@ -64,17 +59,10 @@ interface TurnResult {
   error?: string;
 }
 
-interface Announcement {
-  id: string;
-  english: string;
-  translations: Record<string, string>;
-  created_at: string;
-}
-
 const GUEST_QUICK_QUESTIONS = [
   { label: "Sangeet time & venue", text: "Sangeet kitne baje start hoga aur kahan hai?" },
-  { label: "Hum 4 log, 2 Jain, shaadi", text: "Hum 4 log aayenge, 2 Jain, sirf shaadi." },
-  { label: "ಕನ್ನಡದಲ್ಲಿ ಮುಹೂರ್ತ", text: "ಮುಹೂರ್ತ ಮತ್ತು ಮದುವೆ ಎಷ್ಟು ಗಂಟೆಗೆ?" },
+  { label: "4 guests, 2 Jain, Shaadi", text: "Hum 4 log aayenge, 2 Jain, sirf shaadi." },
+  { label: "ಕನ್ನಡದಲ್ಲಿ ಮುಹೂರ್ತ", text: "ಮುಹೂರ್ತ ಮತ್ತು ಮದುವೆ ಎಷ್ಟು ಗಂಟೆಗೆ ಮತ್ತು ಎಲ್ಲಿ ನಡೆಯುತ್ತದೆ?" },
   { label: "தமிழில் முகூர்த்தம்", text: "முகூர்த்தம் எத்தனை மணிக்கு எங்கே நடைபெறும்?" },
   { label: "Valet parking details", text: "Where is parking available?" },
 ];
@@ -87,25 +75,30 @@ const THINKING_STAGES_BY_LANG: Record<string, [string, string, string]> = {
   en: ["Listening...", "Checking the card...", "Preparing reply..."],
 };
 
-function getOrCreateGid(): string {
-  const existingLs = localStorage.getItem("haanji_gid");
-  if (existingLs) {
-    document.cookie = `haanji_gid=${encodeURIComponent(existingLs)}; path=/; max-age=31536000; SameSite=Lax`;
-    return existingLs;
-  }
-  const cookieMatch = document.cookie.match(/(?:^|; )haanji_gid=([^;]+)/);
-  if (cookieMatch) {
-    const val = decodeURIComponent(cookieMatch[1]);
-    localStorage.setItem("haanji_gid", val);
-    return val;
-  }
-  const fresh =
-    typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `gid-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  localStorage.setItem("haanji_gid", fresh);
-  document.cookie = `haanji_gid=${encodeURIComponent(fresh)}; path=/; max-age=31536000; SameSite=Lax`;
-  return fresh;
+const MIC_FALLBACK_BY_LANG: Record<string, string> = {
+  hinglish:
+    "Microphone permission nahi mili. Koi baat nahi, aap niche Hinglish, Hindi, Kannada, Tamil ya English mein type kar sakte hain.",
+  hi: "माइक्रोफ़ोन उपलब्ध नहीं है। कोई बात नहीं, आप नीचे अपना सवाल टाइप कर सकते हैं।",
+  kn: "ಮೈಕ್ರೊಫೋನ್ ಲಭ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ಕೆಳಗೆ ನಿಮ್ಮ ಪ್ರಶ್ನೆಯನ್ನು ಟೈಪ್ ಮಾಡಿ.",
+  ta: "மைக்ரோஃபோன் கிடைக்கவில்லை. கீழே உங்கள் கேள்வியை தட்டச்சு செய்யலாம்.",
+  en: "Microphone permission was declined. Please type your question below.",
+};
+
+function langDisplayName(lang?: string): string {
+  const l = (lang || "").toLowerCase();
+  if (l === "hinglish") return "Hinglish";
+  if (l.startsWith("kn")) return "ಕನ್ನಡ";
+  if (l.startsWith("ta")) return "தமிழ்";
+  if (l.startsWith("hi")) return "हिन्दी";
+  return "English";
+}
+
+function speechBcpCode(lang?: string): string {
+  const l = (lang || "").toLowerCase();
+  if (l.startsWith("kn")) return "kn-IN";
+  if (l.startsWith("ta")) return "ta-IN";
+  if (l.startsWith("hi") || l === "hinglish") return "hi-IN";
+  return "en-IN";
 }
 
 function playStatusTone(level: 1 | 2) {
@@ -115,62 +108,85 @@ function playStatusTone(level: 1 | 2) {
     const gain = ctx.createGain();
     osc.type = "sine";
     osc.frequency.value = level === 1 ? 520 : 420;
-    gain.gain.setValueAtTime(0.06, ctx.currentTime);
+    gain.gain.setValueAtTime(0.05, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.start();
     osc.stop(ctx.currentTime + 0.35);
   } catch {
-    // Ignore audio context restriction
+    // Ignore browser audio context restrictions
   }
 }
 
-export function GuestConcierge({
-  householdCode,
-  onCardLoaded,
-}: {
-  householdCode?: string | null;
-  onCardLoaded?: (card: WeddingCardData) => void;
-}) {
-  const [gid, setGid] = useState<string>(() => getOrCreateGid());
-  const [card, setCard] = useState<WeddingCardData | null>(null);
-  const [household, setHousehold] = useState<HouseholdInfo | null>(null);
-  const [level, setLevel] = useState<0 | 1 | 2>(0);
-  const [rsvp, setRsvp] = useState<GuestRsvp | null>(null);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [readAnnouncementId, setReadAnnouncementId] = useState<string | null>(() =>
-    localStorage.getItem("haanji_read_ann")
-  );
-  const [imageError, setImageError] = useState(false);
+export type GuestDemoEvent =
+  | "hinglish"
+  | "kannada"
+  | "tamil"
+  | "rsvp_confirmed"
+  | "elder_mode";
 
-  const [elderMode, setElderMode] = useState<boolean>(
-    () => localStorage.getItem("haanji_elder_mode") === "true"
-  );
-  const [languageHint, setLanguageHint] = useState("auto");
+export function GuestConcierge({
+  gid,
+  householdCode,
+  household,
+  card,
+  level,
+  voicePausedFlag,
+  caps,
+  rsvp,
+  languageHint,
+  elderMode,
+  onLanguageHintChange,
+  onToggleElderMode,
+  onRsvpChange,
+  onRotateGid,
+  onRefreshState,
+  onOpenRsvpEdit,
+  onDemoSignal,
+  demoCommand,
+  externalQuestion,
+  focusNonce,
+}: {
+  gid: string;
+  householdCode?: string | null;
+  household: HouseholdInfo | null;
+  card: WeddingCardData | null;
+  level: 0 | 1 | 2;
+  voicePausedFlag: boolean;
+  caps: CapabilitiesSummary | null;
+  rsvp: GuestRsvp | null;
+  languageHint: string;
+  elderMode: boolean;
+  onLanguageHintChange: (lang: string) => void;
+  onToggleElderMode: () => void;
+  onRsvpChange: (next: GuestRsvp) => void;
+  onRotateGid: () => void;
+  onRefreshState: () => void;
+  onOpenRsvpEdit: () => void;
+  onDemoSignal?: (event: GuestDemoEvent) => void;
+  demoCommand?: {
+    action: "ask" | "elder" | "focus_mic";
+    text?: string;
+    lang?: string;
+    nonce: number;
+  } | null;
+  externalQuestion?: { text: string; autoSubmit?: boolean; nonce: number } | null;
+  focusNonce?: number;
+}) {
   const [textInput, setTextInput] = useState("");
   const [isRecording, setIsRecording] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [countdown, setCountdown] = useState(25);
   const [micDeniedMsg, setMicDeniedMsg] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [thinkingStep, setThinkingStep] = useState(0);
   const [lastResult, setLastResult] = useState<TurnResult | null>(null);
+  const [traceExpanded, setTraceExpanded] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState(false);
   const [confirmSaving, setConfirmSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [howItWorksOpen, setHowItWorksOpen] = useState(false);
-
-  const [editOpen, setEditOpen] = useState(false);
-  const [editForm, setEditForm] = useState({
-    attending: true,
-    headcount: 2,
-    functions: ["shaadi"] as string[],
-    jain: 0,
-    veg: 2,
-    nonveg: 0,
-    needs_room: false,
-  });
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -178,43 +194,7 @@ export function GuestConcierge({
   const recordStartRef = useRef<number>(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const textInputRef = useRef<HTMLInputElement | null>(null);
-
-  const fetchCardAndState = async (currentGid: string, hCode?: string | null) => {
-    try {
-      const qs = new URLSearchParams({ gid: currentGid });
-      if (hCode) qs.set("h", hCode);
-      const res = await fetch(`/api/card?${qs.toString()}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setCard(data.card);
-      onCardLoaded?.(data.card);
-      setLevel(data.level);
-      setAnnouncements(data.announcements || []);
-      if (data.household) {
-        setHousehold(data.household);
-      }
-      if (
-        data.elder_mode_default &&
-        localStorage.getItem("haanji_elder_mode") === null
-      ) {
-        setElderMode(true);
-      }
-      if (data.rsvp) {
-        setRsvp(data.rsvp);
-        syncEditForm(data.rsvp);
-      }
-    } catch {
-      // ignore background poll error
-    }
-  };
-
-  useEffect(() => {
-    void fetchCardAndState(gid, householdCode);
-    const id = window.setInterval(() => {
-      void fetchCardAndState(gid, householdCode);
-    }, 4000);
-    return () => window.clearInterval(id);
-  }, [gid, householdCode]);
+  const micSectionRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!submitting) {
@@ -233,29 +213,80 @@ export function GuestConcierge({
     }
   }, [elderMode]);
 
-  const toggleElderMode = () => {
-    const next = !elderMode;
-    setElderMode(next);
-    localStorage.setItem("haanji_elder_mode", String(next));
+  useEffect(() => {
+    if (!focusNonce) return;
+    window.setTimeout(() => {
+      textInputRef.current?.focus();
+    }, 280);
+  }, [focusNonce]);
+
+  useEffect(() => {
+    if (!externalQuestion?.text) return;
+    setTextInput(externalQuestion.text);
+    textInputRef.current?.focus();
+    if (externalQuestion.autoSubmit) {
+      void submitTurn({ text: externalQuestion.text });
+    }
+  }, [externalQuestion?.nonce]);
+
+  useEffect(() => {
+    if (!demoCommand) return;
+    if (demoCommand.action === "elder") {
+      if (!elderMode) {
+        onToggleElderMode();
+      }
+      onDemoSignal?.("elder_mode");
+      if (lastResult && !voicePausedFlag) {
+        speakResult(lastResult, true);
+      }
+    } else if (demoCommand.action === "ask" && demoCommand.text) {
+      const nextLang = demoCommand.lang || "auto";
+      onLanguageHintChange(nextLang);
+      setTextInput(demoCommand.text);
+      void submitTurn({ text: demoCommand.text }, nextLang);
+    } else if (demoCommand.action === "focus_mic") {
+      if (demoCommand.lang) onLanguageHintChange(demoCommand.lang);
+      micSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (demoCommand.text) {
+        setTextInput(demoCommand.text);
+        void submitTurn({ text: demoCommand.text }, demoCommand.lang);
+      }
+    }
+  }, [demoCommand?.nonce]);
+
+  const stopPlayback = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
   };
 
-  const syncEditForm = (r: GuestRsvp) => {
-    setEditForm({
-      attending: r.attending !== false,
-      headcount: r.headcount ?? 2,
-      functions: r.functions?.length ? r.functions : ["shaadi"],
-      jain: r.diet?.jain ?? 0,
-      veg: r.diet?.veg ?? 0,
-      nonveg: r.diet?.nonveg ?? 0,
-      needs_room: Boolean(r.needs_room),
-    });
-  };
-
-  const playAnswerAudio = (base64: string, mime: string | null) => {
-    if (!audioRef.current) return;
-    audioRef.current.src = `data:${mime || "audio/wav"};base64,${base64}`;
-    audioRef.current.playbackRate = elderMode ? 0.85 : 1.0;
-    audioRef.current.play().catch(() => {});
+  const speakResult = (job: TurnResult, forceElderPace?: boolean) => {
+    stopPlayback();
+    const slow = forceElderPace ?? elderMode;
+    if (job.audio_base64 && audioRef.current) {
+      audioRef.current.src = `data:${job.audio_mime || "audio/wav"};base64,${job.audio_base64}`;
+      audioRef.current.playbackRate = slow ? 0.85 : 1.0;
+      setIsSpeaking(true);
+      audioRef.current.play().catch(() => {
+        setIsSpeaking(false);
+      });
+      return;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window && job.answer_text) {
+      const utter = new SpeechSynthesisUtterance(job.answer_text);
+      utter.lang = speechBcpCode(job.answer_language);
+      utter.rate = slow ? 0.85 : 1.0;
+      utter.onstart = () => setIsSpeaking(true);
+      utter.onend = () => setIsSpeaking(false);
+      utter.onerror = () => setIsSpeaking(false);
+      setIsSpeaking(true);
+      window.speechSynthesis.speak(utter);
+    }
   };
 
   const pollJobUntilDone = async (jobId: string) => {
@@ -264,21 +295,28 @@ export function GuestConcierge({
       const res = await fetch(`/api/turn/${encodeURIComponent(jobId)}`);
       if (!res.ok) throw new Error("Unable to reach the concierge right now.");
       const job: TurnResult = await res.json();
-      setLevel(job.level);
       if (job.status === "done" || job.status === "error") {
         setLastResult(job);
+        setTraceExpanded(false);
+        onRefreshState();
         if (job.rsvp) {
-          setRsvp(job.rsvp);
-          syncEditForm(job.rsvp);
+          onRsvpChange(job.rsvp);
         }
         setPendingConfirm(Boolean(job.rsvp_needs_confirmation && !job.rsvp?.confirmed));
         if (job.status === "error") {
           setErrorMsg("Koi baat nahi, thodi der mein dobara poochiye.");
-        }
-        if (job.audio_base64) {
-          playAnswerAudio(job.audio_base64, job.audio_mime);
-        } else if (job.prerendered_clip) {
-          playStatusTone(job.level === 2 ? 2 : 1);
+        } else {
+          const al = (job.answer_language || "").toLowerCase();
+          if (al === "hinglish") onDemoSignal?.("hinglish");
+          if (al.startsWith("kn")) onDemoSignal?.("kannada");
+          if (al.startsWith("ta")) onDemoSignal?.("tamil");
+
+          const paused = Boolean(job.voice_paused) || job.level > 0;
+          if (!paused && (job.audio_base64 || elderMode)) {
+            speakResult(job);
+          } else if (job.prerendered_clip) {
+            playStatusTone(job.level === 2 ? 2 : 1);
+          }
         }
         return;
       }
@@ -287,16 +325,21 @@ export function GuestConcierge({
     throw new Error("Awaaz aane mein thoda waqt lag raha hai, kripya dobara poochiye.");
   };
 
-  const submitTurn = async (payload: {
-    text?: string;
-    audioBase64?: string;
-    audioMime?: string;
-    audioBytes?: number;
-    audioDurationSeconds?: number;
-  }) => {
+  const submitTurn = async (
+    payload: {
+      text?: string;
+      audioBase64?: string;
+      audioMime?: string;
+      audioBytes?: number;
+      audioDurationSeconds?: number;
+    },
+    overrideLangHint?: string
+  ) => {
     setSubmitting(true);
     setErrorMsg(null);
+    stopPlayback();
     try {
+      const effectiveHint = overrideLangHint ?? languageHint;
       const res = await fetch("/api/turn", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -304,14 +347,13 @@ export function GuestConcierge({
           gid,
           householdCode: household?.code || householdCode || undefined,
           ...payload,
-          languageHint: languageHint === "auto" ? undefined : languageHint,
+          languageHint: effectiveHint === "auto" ? undefined : effectiveHint,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "Koi baat nahi, dobara boliye.");
       }
-      setLevel(data.level);
       if (data.status === "queued") {
         playStatusTone(2);
       }
@@ -328,18 +370,22 @@ export function GuestConcierge({
   };
 
   const startRecording = async () => {
-    if (isRecording || submitting) return;
+    if (isRecording || submitting || voiceOffline || voicePaused) return;
     setMicDeniedMsg(null);
     setErrorMsg(null);
+    stopPlayback();
     try {
       if (typeof navigator !== "undefined" && navigator.vibrate) {
         navigator.vibrate(15);
       }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm")
-        ? "audio/webm"
-        : "audio/mp4";
-      const recorder = new MediaRecorder(stream, { mimeType });
+      const chosenMime =
+        typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("audio/mp4")
+          ? "audio/mp4"
+          : undefined;
+      const recorder = chosenMime
+        ? new MediaRecorder(stream, { mimeType: chosenMime })
+        : new MediaRecorder(stream);
       chunksRef.current = [];
       recordStartRef.current = Date.now();
 
@@ -355,7 +401,8 @@ export function GuestConcierge({
         }
         setIsRecording(false);
         const durationSec = Math.round((Date.now() - recordStartRef.current) / 1000);
-        const blob = new Blob(chunksRef.current, { type: mimeType });
+        const actualMime = recorder.mimeType || chosenMime || "audio/ogg";
+        const blob = new Blob(chunksRef.current, { type: actualMime });
         if (blob.size < 200) return;
         const reader = new FileReader();
         reader.onloadend = () => {
@@ -363,7 +410,7 @@ export function GuestConcierge({
           const base64 = dataUrl.split(",")[1] || "";
           void submitTurn({
             audioBase64: base64,
-            audioMime: mimeType,
+            audioMime: actualMime,
             audioBytes: blob.size,
             audioDurationSeconds: Math.max(1, durationSec),
           });
@@ -385,9 +432,8 @@ export function GuestConcierge({
         }
       }, 250);
     } catch {
-      setMicDeniedMsg(
-        "Microphone available nahi hai. Koi baat nahi, aap niche Hindi, English, Kannada ya Tamil mein type kar sakte hain."
-      );
+      const k = languageHint === "auto" ? "hinglish" : languageHint.split("-")[0];
+      setMicDeniedMsg(MIC_FALLBACK_BY_LANG[k] || MIC_FALLBACK_BY_LANG.hinglish);
       textInputRef.current?.focus();
     }
   };
@@ -407,746 +453,454 @@ export function GuestConcierge({
       });
       if (res.ok) {
         const data = await res.json();
-        setRsvp(data.rsvp);
+        onRsvpChange(data.rsvp);
         setPendingConfirm(false);
+        onDemoSignal?.("rsvp_confirmed");
       }
     } finally {
       setConfirmSaving(false);
     }
   };
 
-  const handleSaveManualRsvp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch(`/api/rsvp/${encodeURIComponent(gid)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          householdCode: household?.code || householdCode || undefined,
-          attending: editForm.attending,
-          headcount: editForm.attending ? Number(editForm.headcount) : 0,
-          functions: editForm.attending ? editForm.functions : [],
-          diet: {
-            veg: Number(editForm.veg),
-            jain: Number(editForm.jain),
-            nonveg: Number(editForm.nonveg),
-            no_onion_garlic: 0,
-          },
-          needs_room: editForm.needs_room,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not update RSVP");
-      setRsvp(data.rsvp);
-      setPendingConfirm(false);
-      setEditOpen(false);
-    } catch {
-      setErrorMsg("Koi baat nahi, RSVP save nahi ho paaya. Dobara try karein.");
-    }
-  };
-
-  const rotateSession = () => {
-    const fresh = crypto.randomUUID ? crypto.randomUUID() : `gid-${Date.now()}`;
-    localStorage.setItem("haanji_gid", fresh);
-    document.cookie = `haanji_gid=${encodeURIComponent(fresh)}; path=/; max-age=31536000; SameSite=Lax`;
-    setGid(fresh);
-    setRsvp(null);
-    setLastResult(null);
-    setPendingConfirm(false);
-  };
+  const voiceOffline = caps !== null && !caps.live_ai;
+  const voicePaused = !voiceOffline && (level > 0 || voicePausedFlag);
 
   const statusChipLabel =
     level === 0
-      ? "Live voice"
+      ? voiceOffline
+        ? "Card-only mode"
+        : voicePaused
+          ? "Voice resting"
+          : "Live voice"
       : level === 1
         ? "Text replies (very busy)"
-        : "Queued, answer in about a minute";
+        : "Queued, answer shortly";
 
-  const statusChipClass =
-    level === 0
-      ? "text-[#2F6B4F] border-[#2F6B4F]/30 bg-[#2F6B4F]/10"
-      : level === 1
-        ? "text-[#8A4F09] border-[#F2A93B]/50 bg-[#F2A93B]/15"
-        : "text-[#6B1E2E] border-[#6B1E2E]/30 bg-[#6B1E2E]/10";
+  const statusToneClass =
+    level === 0 && !voiceOffline && !voicePaused
+      ? "text-[#8FB39A] border-[#8FB39A]/35 bg-[#8FB39A]/10"
+      : level === 2
+        ? "text-[#C98A8A] border-[#C98A8A]/35 bg-[#C98A8A]/10"
+        : "text-[#E6CFA3] border-[#B8925A]/35 bg-[#B8925A]/10";
 
   const langKey =
-    languageHint === "auto"
-      ? "hinglish"
-      : languageHint.split("-")[0];
-  const activeThinkingText = (THINKING_STAGES_BY_LANG[langKey] || THINKING_STAGES_BY_LANG.hinglish)[thinkingStep];
+    languageHint === "auto" ? "hinglish" : languageHint.split("-")[0];
+  const activeThinkingText = (THINKING_STAGES_BY_LANG[langKey] || THINKING_STAGES_BY_LANG.hinglish)[
+    thinkingStep
+  ];
 
-  const topAnnouncement = announcements[0];
-  const hasUnreadAnnouncement =
-    Boolean(topAnnouncement) && topAnnouncement.id !== readAnnouncementId;
-
-  const speakAnnouncement = (text: string) => {
-    if (!topAnnouncement) return;
-    setReadAnnouncementId(topAnnouncement.id);
-    localStorage.setItem("haanji_read_ann", topAnnouncement.id);
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.rate = elderMode ? 0.82 : 0.96;
-      window.speechSynthesis.speak(u);
-    }
-  };
-
-  const ringRadius = 42;
+  const ringRadius = 56;
   const ringCircumference = 2 * Math.PI * ringRadius;
   const ringOffset = ringCircumference * (1 - countdown / 25);
 
+  const canSpeakLastResult =
+    Boolean(lastResult?.answer_text) &&
+    (Boolean(lastResult?.audio_base64) ||
+      (!voicePaused &&
+        typeof window !== "undefined" &&
+        "speechSynthesis" in window));
+
+  const btnHeightClass = elderMode ? "min-h-[56px]" : "min-h-[44px]";
+
   return (
-    <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 sm:py-8 ${elderMode ? "text-base" : ""}`}>
-      {/* Host Announcement Banner */}
-      {topAnnouncement && (
-        <div
-          onClick={() => {
-            setReadAnnouncementId(topAnnouncement.id);
-            localStorage.setItem("haanji_read_ann", topAnnouncement.id);
-          }}
-          className="mb-6 rounded-2xl border border-[#C9A96E]/60 bg-white px-5 py-4 text-[#1F1A17] shadow-sm"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              {hasUnreadAnnouncement && (
-                <span className="h-2.5 w-2.5 rounded-full bg-[#6B1E2E]" aria-label="Unread update" />
-              )}
-              <span className="font-semibold text-sm text-[#6B1E2E]">Family Update</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const spoken =
-                    topAnnouncement.translations?.[langKey] ||
-                    topAnnouncement.english;
-                  speakAnnouncement(spoken);
-                }}
-                className="min-h-[36px] px-3 rounded-lg border border-[#C9A96E]/50 text-xs font-medium text-[#6B1E2E] hover:bg-[#FBF7F0] inline-flex items-center gap-1.5"
-              >
-                <Volume2 className="w-3.5 h-3.5" />
-                <span>Listen</span>
-              </button>
-              <span className="text-xs text-[#6F6259]">
-                {new Date(topAnnouncement.created_at).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </span>
-            </div>
-          </div>
-          <p className={`mt-1.5 ${elderMode ? "text-lg font-medium" : "text-sm"} text-[#1F1A17]`}>
-            {topAnnouncement.translations?.[langKey] || topAnnouncement.english}
+    <div className="glass-card p-6 sm:p-10 space-y-8">
+      {/* Header row */}
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b hairline-gold">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-[#E6CFA3]">
+            {household ? `Welcome, ${household.family_name}` : "Multilingual Concierge"}
           </p>
-          {topAnnouncement.translations?.hi && langKey === "hinglish" && (
-            <p className="mt-1 text-xs text-[#6F6259]">
-              {topAnnouncement.translations.hi} · {topAnnouncement.translations.kn} ·{" "}
-              {topAnnouncement.translations.ta}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Main Split Card */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 items-stretch">
-        {/* Left: Wedding Invitation Hero Card */}
-        <div className="lg:col-span-5 flex flex-col justify-between rounded-2xl border border-[#C9A96E]/45 bg-white overflow-hidden">
-          <div>
-            {/* Subtle inline rangoli header motif (<4 KB) */}
-            <div className="relative bg-[#6B1E2E] text-[#FBF7F0] px-5 py-3 flex items-center justify-between overflow-hidden">
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 240 40"
-                className="pointer-events-none absolute inset-0 w-full h-full opacity-20"
-                preserveAspectRatio="none"
-              >
-                <path
-                  d="M0 20 Q20 4 40 20 T80 20 T120 20 T160 20 T200 20 T240 20"
-                  fill="none"
-                  stroke="#F2A93B"
-                  strokeWidth="1.2"
-                />
-                <circle cx="40" cy="20" r="3" fill="#C9A96E" />
-                <circle cx="120" cy="20" r="3" fill="#C9A96E" />
-                <circle cx="200" cy="20" r="3" fill="#C9A96E" />
-              </svg>
-              <span className="relative text-xs font-medium tracking-wide text-[#F2A93B]">
-                {household ? `Welcome, ${household.family_name}` : "Shubh Vivah Concierge"}
-              </span>
-              <span className="relative text-xs text-[#FBF7F0]/90">Bengaluru</span>
-            </div>
-
-            <div className="relative h-52 sm:h-60 w-full bg-[#FBF7F0] overflow-hidden">
-              {!imageError ? (
-                <img
-                  src="/src/assets/images/sharma_reddy_venue_1795418307752.jpg"
-                  alt="Tamarind Tree wedding garden pavilion with marigold garlands"
-                  referrerPolicy="no-referrer"
-                  onError={() => setImageError(true)}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="h-full w-full flex flex-col items-center justify-center bg-[#FBF7F0] p-6 text-center">
-                  <span className="font-display text-xl font-semibold text-[#6B1E2E]">
-                    Tamarind Tree &amp; Leela Palace
-                  </span>
-                  <span className="mt-1 text-xs text-[#6F6259]">Bengaluru, Karnataka</span>
-                </div>
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#1F1A17]/80 via-[#1F1A17]/20 to-transparent" />
-              <div className="absolute bottom-4 left-5 right-5 text-white">
-                <p className="text-xs text-[#F2A93B]">
-                  {card?.wedding.dates || "28-29 November 2026"} · {card?.wedding.subtitle || "Aarav & Ananya"}
-                </p>
-                <h1 className={`mt-0.5 font-display font-semibold tracking-tight text-white ${elderMode ? "text-3xl" : "text-2xl sm:text-3xl"}`}>
-                  {card?.wedding.title || "Sharma & Reddy Wedding"}
-                </h1>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-5">
-              <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[#C9A96E]/35">
-                <span className={`inline-flex items-center px-3 py-1 rounded-full border text-xs font-medium ${statusChipClass}`}>
-                  {statusChipLabel}
-                </span>
-
-                <button
-                  type="button"
-                  onClick={toggleElderMode}
-                  aria-pressed={elderMode}
-                  className={`min-h-[44px] px-3.5 py-2 rounded-xl border text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                    elderMode
-                      ? "bg-[#1F1A17] text-[#FBF7F0] border-[#1F1A17]"
-                      : "bg-[#FBF7F0] text-[#1F1A17] border-[#C9A96E]/60 hover:bg-[#F3EADF]"
-                  }`}
-                >
-                  Elder Mode: {elderMode ? "ON" : "OFF"}
-                </button>
-              </div>
-
-              <div>
-                <h2 className={`font-display font-semibold text-[#6B1E2E] ${elderMode ? "text-lg" : "text-sm"}`}>
-                  Celebration Schedule
-                </h2>
-                <div className="mt-3 divide-y divide-[#C9A96E]/30">
-                  {(card?.functions || []).map((f) => (
-                    <div key={f.id} className="py-2.5 flex items-baseline justify-between gap-3">
-                      <div>
-                        <p className={`font-medium text-[#1F1A17] ${elderMode ? "text-base" : "text-sm"}`}>
-                          {f.name}
-                        </p>
-                        <p className={`${elderMode ? "text-sm" : "text-xs"} text-[#5C4F46]`}>{f.venue}</p>
-                      </div>
-                      <span className={`${elderMode ? "text-sm" : "text-xs"} font-medium tabular-nums text-[#6B1E2E] whitespace-nowrap`}>
-                        {f.date.replace(" 2026", "")} · {f.time}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="px-6 py-4 bg-[#FBF7F0] border-t border-[#C9A96E]/35 flex flex-wrap items-center justify-between gap-3 text-xs text-[#5C4F46]">
-            <button
-              type="button"
-              onClick={() => setHowItWorksOpen(true)}
-              className="min-h-[36px] inline-flex items-center gap-1.5 font-medium text-[#6B1E2E] hover:underline"
-            >
-              <HelpCircle className="w-3.5 h-3.5" />
-              <span>How HaanJi works</span>
-            </button>
-            <button
-              type="button"
-              onClick={rotateSession}
-              className="min-h-[36px] text-[#6B1E2E] font-medium hover:underline whitespace-nowrap shrink-0"
-            >
-              Switch Guest
-            </button>
-          </div>
+          <h2
+            className={`mt-2 font-display font-light text-[#F5EDE1] ${
+              elderMode ? "text-3xl sm:text-4xl" : "text-2xl sm:text-4xl"
+            }`}
+          >
+            Poochiye, HaanJi sun raha hai
+          </h2>
+          <p className={`mt-1.5 text-[#F5EDE1]/70 indic-relaxed ${elderMode ? "text-lg" : "text-sm"}`}>
+            Speak or type in Hindi, Hinglish, English, ಕನ್ನಡ or தமிழ்.
+            {card?.wedding?.title ? ` Answers follow the ${card.wedding.title} card.` : ""}
+          </p>
         </div>
 
-        {/* Right: Voice & Text Concierge */}
-        <div className="lg:col-span-7 flex flex-col justify-between rounded-2xl border border-[#C9A96E]/45 bg-white p-6 sm:p-8">
-          <div>
-            {/* Controls Header */}
-            <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-[#C9A96E]/35">
-              <div>
-                <h2 className={`font-display font-semibold text-[#1F1A17] ${elderMode ? "text-2xl" : "text-xl"}`}>
-                  Poochiye, HaanJi sun raha hai
-                </h2>
-                <p className={`mt-0.5 text-[#5C4F46] ${elderMode ? "text-base" : "text-sm"}`}>
-                  Speak or write in Hindi, Hinglish, English, ಕನ್ನಡ or தமிழ்.
-                </p>
-              </div>
-              <select
-                aria-label="Preferred language"
-                value={languageHint}
-                onChange={(e) => setLanguageHint(e.target.value)}
-                className="min-h-[44px] rounded-xl border border-[#C9A96E]/60 bg-[#FBF7F0] px-3 text-xs font-medium text-[#1F1A17] focus:outline-none focus:ring-2 focus:ring-[#6B1E2E]"
-              >
-                <option value="auto">Auto Language</option>
-                <option value="hinglish">Hinglish</option>
-                <option value="hi-IN">Hindi (हिन्दी)</option>
-                <option value="kn-IN">Kannada (ಕನ್ನಡ)</option>
-                <option value="ta-IN">Tamil (தமிழ்)</option>
-                <option value="en-IN">English (India)</option>
-              </select>
-            </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <span
+            className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-[11px] uppercase tracking-[0.2em] ${statusToneClass}`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                level === 0 && !voiceOffline && !voicePaused
+                  ? "bg-[#8FB39A]"
+                  : level === 2
+                    ? "bg-[#C98A8A]"
+                    : "bg-[#E6CFA3]"
+              }`}
+            />
+            <span>{statusChipLabel}</span>
+          </span>
 
-            {/* Hold-to-ask Voice Zone (Thumb-reachable, >= 88px target, 25s ring) */}
-            <div className="my-6 flex flex-col items-center justify-center rounded-2xl border border-[#C9A96E]/40 bg-[#FBF7F0] p-6 text-center">
-              <div className="relative inline-flex items-center justify-center">
-                {isRecording && (
+          <select
+            aria-label="Preferred concierge language"
+            value={languageHint}
+            onChange={(e) => onLanguageHintChange(e.target.value)}
+            className={`${btnHeightClass} rounded-full border border-[#B8925A]/45 bg-[#14050A]/80 px-4 text-xs uppercase tracking-[0.14em] text-[#E6CFA3]`}
+          >
+            <option value="auto">Auto Language</option>
+            <option value="hinglish">Hinglish</option>
+            <option value="hi-IN">हिन्दी</option>
+            <option value="kn-IN">ಕನ್ನಡ</option>
+            <option value="ta-IN">தமிழ்</option>
+            <option value="en-IN">English</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Hold-to-ask Round Voice Button */}
+      <div
+        ref={micSectionRef}
+        className="flex flex-col items-center justify-center py-6 text-center rounded-2xl border border-[#B8925A]/20 bg-[#14050A]/45 px-4"
+      >
+        {voiceOffline || voicePaused ? (
+          <div className="py-3 space-y-2">
+            <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full border border-[#B8925A]/30 text-xs uppercase tracking-[0.18em] text-[#E6CFA3]">
+              <MicOff className="w-4 h-4 text-[#B8925A]" strokeWidth={1.5} />
+              <span>Voice is resting, please type</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="relative inline-flex items-center justify-center">
+              {isRecording && (
+                <>
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -inset-3 rounded-full border border-[#B8925A]/70 animate-mic-ring"
+                  />
                   <svg
-                    className="pointer-events-none absolute -inset-2 w-[112px] h-[112px] -rotate-90"
-                    viewBox="0 0 96 96"
+                    className="pointer-events-none absolute -inset-2.5 w-[144px] h-[144px] -rotate-90"
+                    viewBox="0 0 128 128"
+                    aria-hidden="true"
                   >
                     <circle
-                      cx="48"
-                      cy="48"
+                      cx="64"
+                      cy="64"
                       r={ringRadius}
                       fill="none"
-                      stroke="#C9A96E"
-                      strokeWidth="3"
-                      opacity="0.3"
+                      stroke="#B8925A"
+                      strokeWidth="1.5"
+                      opacity="0.25"
                     />
                     <circle
-                      cx="48"
-                      cy="48"
+                      cx="64"
+                      cy="64"
                       r={ringRadius}
                       fill="none"
-                      stroke="#6B1E2E"
-                      strokeWidth="3.5"
+                      stroke="#E6CFA3"
+                      strokeWidth="2"
                       strokeDasharray={ringCircumference}
                       strokeDashoffset={ringOffset}
                       strokeLinecap="round"
                     />
                   </svg>
-                )}
-
-                <button
-                  type="button"
-                  onMouseDown={startRecording}
-                  onMouseUp={stopRecording}
-                  onMouseLeave={() => {
-                    if (isRecording) stopRecording();
-                  }}
-                  onTouchStart={(e) => {
-                    e.preventDefault();
-                    void startRecording();
-                  }}
-                  onTouchEnd={(e) => {
-                    e.preventDefault();
-                    stopRecording();
-                  }}
-                  disabled={submitting}
-                  className={`min-h-[88px] min-w-[220px] px-7 py-4 rounded-full font-semibold text-base flex items-center justify-center gap-3 transition-transform active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B1E2E] ${
-                    isRecording
-                      ? "bg-[#6B1E2E] text-white shadow-md"
-                      : "bg-[#F2A93B] text-[#1F1A17] hover:bg-[#e59a28] shadow-sm marigold-pulse"
-                  } disabled:opacity-60`}
-                >
-                  {isRecording ? (
-                    <>
-                      <MicOff className="w-6 h-6" />
-                      <span className="tabular-nums">{countdown}s · Release to send</span>
-                    </>
-                  ) : (
-                    <>
-                      <Mic className="w-6 h-6" />
-                      <span>{submitting ? activeThinkingText : "Hold to ask"}</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {isRecording ? (
-                <div className="mt-4 flex items-end justify-center gap-1 h-5" aria-hidden="true">
-                  {[12, 20, 16, 24, 14, 22, 15].map((h, idx) => (
-                    <span
-                      key={idx}
-                      className="w-1 rounded-full bg-[#6B1E2E] animate-pulse"
-                      style={{ height: `${h}px` }}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className={`mt-3 text-[#5C4F46] ${elderMode ? "text-sm" : "text-xs"}`}>
-                  Press and hold up to 25 seconds, or type your message below.
-                </p>
+                </>
               )}
 
-              {micDeniedMsg && (
-                <p className="mt-3 text-xs text-[#6B1E2E] bg-white border border-[#C9A96E]/50 rounded-xl px-4 py-2.5">
-                  {micDeniedMsg}
-                </p>
-              )}
-            </div>
-
-            {/* Helpful Guest Question Chips */}
-            <div className="mb-5">
-              <p className="text-xs font-medium text-[#5C4F46] mb-2">Common guest questions:</p>
-              <div className="flex flex-wrap gap-2">
-                {GUEST_QUICK_QUESTIONS.map((sp) => (
-                  <button
-                    key={sp.label}
-                    type="button"
-                    disabled={submitting}
-                    onClick={() => {
-                      setTextInput(sp.text);
-                      void submitTurn({ text: sp.text });
-                    }}
-                    className="min-h-[44px] px-3.5 py-2 text-xs font-medium rounded-xl border border-[#C9A96E]/50 bg-[#FBF7F0] text-[#1F1A17] hover:bg-[#F3EADF] transition-colors whitespace-nowrap"
-                  >
-                    {sp.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Text Input Fallback */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!textInput.trim() || submitting) return;
-                void submitTurn({ text: textInput.trim() });
-              }}
-              className="flex gap-2"
-            >
-              <input
-                ref={textInputRef}
-                type="text"
-                value={textInput}
-                onChange={(e) => setTextInput(e.target.value)}
-                placeholder="Ask about timings, venue, menu, or RSVP..."
-                className={`flex-1 min-h-[48px] rounded-xl border border-[#C9A96E]/60 bg-white px-4 text-[#1F1A17] placeholder:text-[#8B7D72] focus:outline-none focus:ring-2 focus:ring-[#6B1E2E] ${
-                  elderMode ? "text-base" : "text-sm"
-                }`}
-              />
-              <button
-                type="submit"
-                disabled={submitting || !textInput.trim()}
-                className="min-h-[48px] px-5 rounded-xl bg-[#6B1E2E] text-white text-sm font-medium hover:bg-[#541724] disabled:opacity-50 flex items-center gap-2 whitespace-nowrap shrink-0"
-              >
-                <Send className="w-4 h-4" />
-                <span>Send</span>
-              </button>
-            </form>
-
-            {/* Friendly Error Message */}
-            {errorMsg && (
-              <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-[#6B1E2E]/30 bg-[#FBF7F0] px-4 py-3 text-sm text-[#6B1E2E]">
-                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                <p>{errorMsg}</p>
-              </div>
-            )}
-
-            {/* Answer Card */}
-            {lastResult && !errorMsg && (
-              <div className="mt-6 pt-5 border-t border-[#C9A96E]/35 space-y-3 transition-all duration-150">
-                {lastResult.transcript && (
-                  <p className="text-xs text-[#6F6259]">
-                    Heard: &ldquo;{lastResult.transcript}&rdquo;
-                  </p>
-                )}
-
-                <p
-                  className={`font-display leading-snug text-[#1F1A17] ${
-                    elderMode ? "text-2xl sm:text-3xl font-semibold" : "text-xl sm:text-2xl"
-                  }`}
-                >
-                  {lastResult.answer_text}
-                </p>
-
-                <div className="flex flex-wrap items-center gap-3 pt-1">
-                  {lastResult.audio_base64 && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        playAnswerAudio(lastResult.audio_base64!, lastResult.audio_mime)
-                      }
-                      className="min-h-[44px] px-4 rounded-xl border border-[#C9A96E]/60 bg-[#FBF7F0] text-xs font-semibold text-[#6B1E2E] hover:bg-[#F3EADF] inline-flex items-center gap-1.5"
-                    >
-                      <Volume2 className="w-4 h-4" />
-                      <span>Listen again</span>
-                    </button>
-                  )}
-
-                  {lastResult.matched_function?.maps_url && (
-                    <a
-                      href={lastResult.matched_function.maps_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="min-h-[44px] px-4 rounded-xl border border-[#C9A96E]/60 bg-white text-xs font-semibold text-[#1F1A17] hover:bg-[#FBF7F0] inline-flex items-center gap-1.5"
-                    >
-                      <MapPin className="w-4 h-4 text-[#6B1E2E]" />
-                      <span>Map: {lastResult.matched_function.name}</span>
-                    </a>
-                  )}
-
-                  {lastResult.matched_function && (
-                    <button
-                      type="button"
-                      onClick={() => downloadFunctionIcs(lastResult.matched_function!)}
-                      className="min-h-[44px] px-4 rounded-xl border border-[#C9A96E]/60 bg-white text-xs font-semibold text-[#1F1A17] hover:bg-[#FBF7F0] inline-flex items-center gap-1.5"
-                    >
-                      <CalendarPlus className="w-4 h-4 text-[#2F6B4F]" />
-                      <span>Add to calendar</span>
-                    </button>
-                  )}
-
-                  {lastResult.grounding_violation && (
-                    <span className="text-xs font-medium text-[#6B1E2E]">
-                      Forwarded to Sharma &amp; Reddy family desk.
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* 2-Step Friendly RSVP Confirmation Card */}
-            {pendingConfirm && rsvp && (
-              <div className="mt-5 rounded-2xl border border-[#F2A93B] bg-[#FBF7F0] p-5 space-y-3">
-                <p className={`font-semibold text-[#1F1A17] ${elderMode ? "text-lg" : "text-sm"}`}>
-                  {rsvp.headcount
-                    ? `${rsvp.headcount} log, ${rsvp.functions.join(", ") || "functions pending"}${
-                        rsvp.diet.jain > 0 ? `, ${rsvp.diet.jain} Jain` : ""
-                      }. Sahi hai?`
-                    : rsvp.headcount_range
-                      ? `${rsvp.headcount_range[0]}-${rsvp.headcount_range[1]} log tentative, ${
-                          rsvp.functions.join(", ") || "Shaadi"
-                        }. Confirm exact count?`
-                      : "Please confirm your RSVP details."}
-                </p>
-                <div className="flex flex-wrap gap-2.5">
-                  {rsvp.headcount && (
-                    <button
-                      type="button"
-                      disabled={confirmSaving}
-                      onClick={handleConfirmRsvp}
-                      className="min-h-[44px] px-5 rounded-xl bg-[#2F6B4F] text-white text-xs font-semibold hover:bg-[#24543e] inline-flex items-center gap-1.5"
-                    >
-                      <Check className="w-4 h-4" />
-                      <span>Haan, confirm</span>
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setEditOpen(true)}
-                    className="min-h-[44px] px-5 rounded-xl border border-[#C9A96E] bg-white text-[#1F1A17] text-xs font-semibold hover:bg-[#F3EADF]"
-                  >
-                    Badlo (Edit)
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Recorded RSVP Summary & Manual Edit Form */}
-          <div className="mt-6 pt-5 border-t border-[#C9A96E]/35">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-medium text-[#5C4F46]">Your RSVP on record</p>
-                {rsvp ? (
-                  <p className={`mt-0.5 font-medium text-[#1F1A17] ${elderMode ? "text-base" : "text-sm"}`}>
-                    {rsvp.attending === false
-                      ? "Not attending"
-                      : `${
-                          rsvp.headcount ??
-                          (rsvp.headcount_range
-                            ? `${rsvp.headcount_range[0]}-${rsvp.headcount_range[1]} tentative`
-                            : "Pending headcount")
-                        } · ${
-                          rsvp.functions.length ? rsvp.functions.join(" + ") : "No functions selected"
-                        }${rsvp.diet.jain > 0 ? ` · ${rsvp.diet.jain} Jain` : ""}${
-                          rsvp.needs_room ? " · Room requested" : ""
-                        }${rsvp.confirmed ? " · Confirmed" : " · Awaiting your tap"}`}
-                  </p>
-                ) : (
-                  <p className={`mt-0.5 text-[#5C4F46] ${elderMode ? "text-base" : "text-sm"}`}>
-                    Tell HaanJi how many guests are joining and for which functions.
-                  </p>
-                )}
-              </div>
               <button
                 type="button"
-                onClick={() => setEditOpen(!editOpen)}
-                className="min-h-[44px] px-3.5 py-2 rounded-xl border border-[#C9A96E]/60 text-xs font-medium text-[#1F1A17] hover:bg-[#FBF7F0] flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                aria-label={isRecording ? "Release to send voice question" : "Hold to ask by voice"}
+                onMouseDown={startRecording}
+                onMouseUp={stopRecording}
+                onMouseLeave={() => {
+                  if (isRecording) stopRecording();
+                }}
+                onTouchStart={(e) => {
+                  e.preventDefault();
+                  void startRecording();
+                }}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  stopRecording();
+                }}
+                disabled={submitting}
+                className={`h-[124px] w-[124px] rounded-full border-2 flex flex-col items-center justify-center gap-1.5 transition-colors active:scale-[0.98] disabled:opacity-55 ${
+                  isRecording
+                    ? "border-[#E6CFA3] bg-[#2B0A12] text-[#F5EDE1]"
+                    : "border-[#F5EDE1] bg-[#14050A] text-[#F5EDE1] hover:border-[#E6CFA3]"
+                }`}
               >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>{editOpen ? "Close" : "Edit"}</span>
+                {isRecording ? (
+                  <>
+                    <MicOff className="w-6 h-6 text-[#E6CFA3]" strokeWidth={1.5} />
+                    <span className="font-mono text-xs tabular-nums text-[#E6CFA3]">{countdown}s</span>
+                  </>
+                ) : (
+                  <>
+                    <Mic className="w-6 h-6 text-[#E6CFA3]" strokeWidth={1.5} />
+                    <span className="text-[11px] uppercase tracking-[0.16em] text-[#F5EDE1]">
+                      {submitting ? "Wait" : "Hold to ask"}
+                    </span>
+                  </>
+                )}
               </button>
             </div>
 
-            {rsvp?.warnings && rsvp.warnings.length > 0 && (
-              <p className="mt-2 text-xs text-[#6B1E2E]">{rsvp.warnings[0]}</p>
-            )}
+            <p className={`mt-4 text-[#F5EDE1]/70 ${elderMode ? "text-base" : "text-xs"}`}>
+              {isRecording
+                ? "Listening carefully, release to send."
+                : submitting
+                  ? activeThinkingText
+                  : "Press and hold up to 25 seconds, or tap a sample question below."}
+            </p>
+          </>
+        )}
 
-            {editOpen && (
-              <form
-                onSubmit={handleSaveManualRsvp}
-                className="mt-4 p-4 rounded-xl bg-[#FBF7F0] border border-[#C9A96E]/45 space-y-4"
-              >
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <label className="text-xs text-[#1F1A17]">
-                    Attending
-                    <select
-                      value={editForm.attending ? "yes" : "no"}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, attending: e.target.value === "yes" })
-                      }
-                      className="mt-1 w-full min-h-[44px] rounded-lg border border-[#C9A96E]/60 bg-white px-2 text-sm"
-                    >
-                      <option value="yes">Yes</option>
-                      <option value="no">Cannot attend</option>
-                    </select>
-                  </label>
+        {micDeniedMsg && (
+          <p className="mt-3 text-xs text-[#E6CFA3] border border-[#B8925A]/35 rounded-xl px-4 py-2.5 bg-[#14050A]/80">
+            {micDeniedMsg}
+          </p>
+        )}
+      </div>
 
-                  <label className="text-xs text-[#1F1A17]">
-                    Headcount
-                    <input
-                      type="number"
-                      min={0}
-                      max={50}
-                      disabled={!editForm.attending}
-                      value={editForm.headcount}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, headcount: Number(e.target.value) })
-                      }
-                      className="mt-1 w-full min-h-[44px] rounded-lg border border-[#C9A96E]/60 bg-white px-2 text-sm tabular-nums"
-                    />
-                  </label>
-
-                  <label className="text-xs text-[#1F1A17]">
-                    Jain Meals
-                    <input
-                      type="number"
-                      min={0}
-                      disabled={!editForm.attending}
-                      value={editForm.jain}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, jain: Number(e.target.value) })
-                      }
-                      className="mt-1 w-full min-h-[44px] rounded-lg border border-[#C9A96E]/60 bg-white px-2 text-sm tabular-nums"
-                    />
-                  </label>
-
-                  <label className="text-xs text-[#1F1A17]">
-                    Veg Meals
-                    <input
-                      type="number"
-                      min={0}
-                      disabled={!editForm.attending}
-                      value={editForm.veg}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, veg: Number(e.target.value) })
-                      }
-                      className="mt-1 w-full min-h-[44px] rounded-lg border border-[#C9A96E]/60 bg-white px-2 text-sm tabular-nums"
-                    />
-                  </label>
-                </div>
-
-                {editForm.attending && (
-                  <div className="flex flex-wrap items-center gap-2.5 text-xs">
-                    {(["mehendi", "sangeet", "shaadi", "reception"] as const).map((fnId) => {
-                      const active = editForm.functions.includes(fnId);
-                      return (
-                        <button
-                          key={fnId}
-                          type="button"
-                          onClick={() =>
-                            setEditForm({
-                              ...editForm,
-                              functions: active
-                                ? editForm.functions.filter((f) => f !== fnId)
-                                : [...editForm.functions, fnId],
-                            })
-                          }
-                          className={`min-h-[44px] px-3.5 py-2 rounded-xl border font-medium capitalize ${
-                            active
-                              ? "border-[#6B1E2E] bg-[#6B1E2E] text-white"
-                              : "border-[#C9A96E]/60 bg-white text-[#1F1A17]"
-                          }`}
-                        >
-                          {fnId}
-                        </button>
-                      );
-                    })}
-                    <label className="ml-auto inline-flex items-center gap-2 text-[#1F1A17]">
-                      <input
-                        type="checkbox"
-                        checked={editForm.needs_room}
-                        onChange={(e) =>
-                          setEditForm({ ...editForm, needs_room: e.target.checked })
-                        }
-                      />
-                      Needs hotel room
-                    </label>
-                  </div>
-                )}
-
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    className="min-h-[44px] px-5 py-2 rounded-xl bg-[#2F6B4F] text-white text-xs font-semibold hover:bg-[#24543e] inline-flex items-center gap-1.5"
-                  >
-                    <Check className="w-4 h-4" />
-                    Save RSVP
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-
-          <audio ref={audioRef} className="hidden" />
+      {/* Sample Question Chips */}
+      <div>
+        <p className="text-[11px] uppercase tracking-[0.2em] text-[#E6CFA3]/85 mb-3">
+          Sample questions
+        </p>
+        <div className="flex flex-wrap gap-2.5">
+          {GUEST_QUICK_QUESTIONS.map((sp) => (
+            <button
+              key={sp.label}
+              type="button"
+              disabled={submitting}
+              onClick={() => {
+                setTextInput(sp.text);
+                void submitTurn({ text: sp.text });
+              }}
+              className={`${btnHeightClass} px-4 py-2 rounded-full border border-[#B8925A]/45 bg-transparent text-xs text-[#F5EDE1] hover:bg-[#B8925A]/15 transition-colors indic-relaxed`}
+            >
+              {sp.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* How HaanJi Works Plain-Language Modal */}
-      {howItWorksOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#1F1A17]/50 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="How HaanJi works"
-        >
-          <div className="w-full max-w-md rounded-2xl border border-[#C9A96E] bg-[#FBF7F0] p-6 text-[#1F1A17] shadow-lg space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-display text-xl font-semibold text-[#6B1E2E]">
-                How HaanJi works
-              </h3>
+      {/* Answer Card */}
+      <div aria-live="polite" className="space-y-4">
+        {errorMsg && (
+          <div className="flex items-start gap-2.5 rounded-2xl border border-[#C98A8A]/45 bg-[#14050A]/75 px-4 py-3.5 text-sm text-[#C98A8A]">
+            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+            <p>{errorMsg}</p>
+          </div>
+        )}
+
+        {lastResult && !errorMsg && (
+          <div className="rounded-2xl border border-[#B8925A]/30 bg-[#14050A]/70 p-6 sm:p-7 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {lastResult.transcript ? (
+                <p className="text-xs text-[#F5EDE1]/70">
+                  Heard: &ldquo;{lastResult.transcript}&rdquo;
+                </p>
+              ) : (
+                <span />
+              )}
+              <span className="px-3 py-1 rounded-full border border-[#B8925A]/45 text-[11px] uppercase tracking-[0.18em] text-[#E6CFA3]">
+                {lastResult.language_label || langDisplayName(lastResult.answer_language)}
+              </span>
+            </div>
+
+            <p
+              className={`font-display font-light text-[#F5EDE1] indic-relaxed ${
+                elderMode ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl"
+              }`}
+            >
+              {lastResult.answer_text}
+            </p>
+
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              {canSpeakLastResult && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isSpeaking) {
+                      stopPlayback();
+                    } else {
+                      speakResult(lastResult);
+                    }
+                  }}
+                  className={`${btnHeightClass} px-4 rounded-full border border-[#B8925A]/55 text-xs uppercase tracking-[0.15em] text-[#E6CFA3] hover:bg-[#B8925A]/15 inline-flex items-center gap-2`}
+                >
+                  {isSpeaking ? (
+                    <>
+                      <Square className="w-3.5 h-3.5 fill-current" />
+                      <span>Stop</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="w-4 h-4" strokeWidth={1.5} />
+                      <span>Play{elderMode ? " (0.85x)" : ""}</span>
+                    </>
+                  )}
+                </button>
+              )}
+
+              {lastResult.matched_function?.maps_url && (
+                <a
+                  href={lastResult.matched_function.maps_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`${btnHeightClass} px-4 rounded-full border border-[#B8925A]/40 text-xs text-[#F5EDE1] hover:bg-[#B8925A]/15 inline-flex items-center gap-1.5`}
+                >
+                  <MapPin className="w-3.5 h-3.5 text-[#E6CFA3]" strokeWidth={1.5} />
+                  <span>Directions: {lastResult.matched_function.name}</span>
+                </a>
+              )}
+
+              {lastResult.matched_function && (
+                <button
+                  type="button"
+                  onClick={() => downloadFunctionIcs(lastResult.matched_function!)}
+                  className={`${btnHeightClass} px-4 rounded-full border border-[#B8925A]/40 text-xs text-[#F5EDE1] hover:bg-[#B8925A]/15 inline-flex items-center gap-1.5`}
+                >
+                  <CalendarPlus className="w-3.5 h-3.5 text-[#8FB39A]" strokeWidth={1.5} />
+                  <span>Add to calendar</span>
+                </button>
+              )}
+
+              {lastResult.grounding_violation && (
+                <span className="px-3 py-1 rounded-full border border-[#B8925A]/35 text-[11px] uppercase tracking-[0.16em] text-[#E6CFA3]">
+                  Sent to the family
+                </span>
+              )}
+            </div>
+
+            {lastResult.behind_answer && (
+              <div className="pt-2 border-t hairline-gold">
+                <button
+                  type="button"
+                  onClick={() => setTraceExpanded((v) => !v)}
+                  className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-[#F5EDE1]/70 hover:text-[#E6CFA3]"
+                >
+                  <span>Behind this answer</span>
+                  {traceExpanded ? (
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  )}
+                </button>
+                {traceExpanded && (
+                  <p className="mt-2 rounded-xl bg-[#14050A]/80 border border-[#B8925A]/20 px-3.5 py-2.5 text-xs text-[#F5EDE1]/75 font-mono">
+                    {lastResult.behind_answer.stt} &rarr; {lastResult.behind_answer.chat} &rarr;{" "}
+                    {lastResult.behind_answer.tts} · Tone: {lastResult.behind_answer.tone} · Level{" "}
+                    {lastResult.behind_answer.level}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 2-step Confirmation Card when voice/text proposes an RSVP update */}
+        {pendingConfirm && rsvp && (
+          <div className="rounded-2xl border border-[#B8925A]/55 bg-[#2B0A12]/70 p-5 sm:p-6 space-y-4">
+            <div>
+              <p className={`font-medium text-[#F5EDE1] ${elderMode ? "text-lg" : "text-sm"}`}>
+                {rsvp.headcount
+                  ? `${rsvp.headcount} guests, ${rsvp.functions.join(", ") || "functions pending"}${
+                      rsvp.diet.jain > 0 ? `, ${rsvp.diet.jain} Jain` : ""
+                    }${rsvp.diet.veg > 0 ? `, ${rsvp.diet.veg} Veg` : ""}. Confirm this RSVP?`
+                  : rsvp.headcount_range
+                    ? `${rsvp.headcount_range[0]}-${rsvp.headcount_range[1]} tentative guests, ${
+                        rsvp.functions.join(", ") || "Shaadi"
+                      }. Set exact count to confirm?`
+                    : "Please confirm your RSVP details."}
+              </p>
+              <p className="mt-1 text-xs text-[#E6CFA3]/85">
+                Your RSVP reaches the caterer only after you confirm.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {rsvp.headcount && (
+                <button
+                  type="button"
+                  disabled={confirmSaving}
+                  onClick={handleConfirmRsvp}
+                  className={`${btnHeightClass} px-5 rounded-full bg-[#F5EDE1] text-[#14050A] text-xs font-semibold hover:bg-[#E6CFA3] inline-flex items-center gap-1.5`}
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Yes, confirm RSVP</span>
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setHowItWorksOpen(false)}
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border border-[#C9A96E]/50 text-[#1F1A17] hover:bg-white"
-                aria-label="Close"
+                onClick={onOpenRsvpEdit}
+                className={`${btnHeightClass} px-5 rounded-full border border-[#B8925A] text-[#F5EDE1] text-xs hover:bg-[#B8925A]/15`}
               >
-                <X className="w-5 h-5" />
+                Edit details
               </button>
             </div>
-            <div className="space-y-3 text-sm leading-relaxed text-[#3E352F]">
-              <p>
-                1. Every answer comes straight from the official Sharma &amp; Reddy wedding invitation card. HaanJi never guesses timings or venues.
-              </p>
-              <p>
-                2. When you share your family headcount and Jain or vegetarian preferences, HaanJi shows a confirmation step before updating the caterer tally.
-              </p>
-              <p>
-                3. If a detail is not on the invitation yet, your question goes straight to the family host desk so they can add the answer for everyone.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setHowItWorksOpen(false)}
-              className="w-full min-h-[44px] rounded-xl bg-[#6B1E2E] text-white text-xs font-semibold hover:bg-[#541724]"
-            >
-              Got it
-            </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* Text Input Bar (sticky/reachable at bottom of concierge card on mobile) */}
+      <div className="sticky bottom-3 z-10 md:static bg-[#14050A]/90 md:bg-transparent backdrop-blur-md md:backdrop-blur-none rounded-2xl p-2 md:p-0 border border-[#B8925A]/25 md:border-0">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!textInput.trim() || submitting) return;
+            void submitTurn({ text: textInput.trim() });
+          }}
+          className="flex flex-col sm:flex-row gap-2.5"
+        >
+          <input
+            ref={textInputRef}
+            type="text"
+            value={textInput}
+            onChange={(e) => setTextInput(e.target.value)}
+            placeholder="Ask about timings, venue, menu, or RSVP..."
+            aria-label="Ask HaanJi a question"
+            className={`flex-1 ${elderMode ? "min-h-[56px] text-lg" : "min-h-[48px] text-sm"} rounded-xl border border-[#B8925A]/35 bg-[#14050A]/80 px-4 text-[#F5EDE1] placeholder:text-[#F5EDE1]/45`}
+          />
+          <button
+            type="submit"
+            disabled={submitting || !textInput.trim()}
+            className={`${btnHeightClass} px-6 rounded-xl bg-[#F5EDE1] text-[#14050A] text-xs font-semibold uppercase tracking-[0.14em] hover:bg-[#E6CFA3] disabled:opacity-45 inline-flex items-center justify-center gap-2 shrink-0`}
+          >
+            <Send className="w-3.5 h-3.5" strokeWidth={1.75} />
+            <span>{submitting ? "Sending" : "Send"}</span>
+          </button>
+        </form>
+      </div>
+
+      {/* Calm capability & guest session footer */}
+      <div className="pt-4 border-t hairline-gold flex flex-wrap items-center justify-between gap-3 text-xs text-[#F5EDE1]/65">
+        <span>
+          {caps?.sarvam
+            ? "Live voice & translation by Sarvam AI · Grounded in the wedding card."
+            : caps?.live_ai
+              ? "Live AI voice & replies ON · Grounded in the wedding card."
+              : "Saved card mode active in all 5 languages."}
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            setLastResult(null);
+            setPendingConfirm(false);
+            stopPlayback();
+            onRotateGid();
+          }}
+          className="text-[11px] uppercase tracking-[0.18em] text-[#E6CFA3] hover:underline"
+        >
+          Switch Guest
+        </button>
+      </div>
+
+      <audio
+        ref={audioRef}
+        onEnded={() => setIsSpeaking(false)}
+        onPause={() => setIsSpeaking(false)}
+        className="hidden"
+      />
     </div>
   );
 }

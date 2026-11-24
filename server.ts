@@ -6,6 +6,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import { alerter } from "./server/alerter.ts";
 import { translateAnnouncement } from "./server/brain.ts";
+import { capabilities } from "./server/capabilities.ts";
 import {
   HOST_KEY,
   OPS_TOKEN,
@@ -13,6 +14,7 @@ import {
   SESSION_HMAC_SECRET,
 } from "./server/config.ts";
 import { flags } from "./server/flags.ts";
+import { sharedLimiter } from "./server/limiter.ts";
 import { metrics } from "./server/metrics.ts";
 import {
   createOpsRouter,
@@ -26,7 +28,7 @@ import {
   runTrackAUnitTests,
   runTrackBUnitTests,
 } from "./server/tests/runner.ts";
-import { FunctionId, RsvpPatch, TestCaseResult } from "./server/types.ts";
+import type { FunctionId, RsvpPatch, TestCaseResult } from "./server/types.ts";
 import { AudioValidationError, worker } from "./server/worker.ts";
 
 const PORT = Number(process.env.PORT || 3000);
@@ -87,6 +89,16 @@ async function startServer() {
     });
   });
 
+  app.get("/api/capabilities", async (req, res) => {
+    try {
+      const refresh = req.query.refresh === "1" || req.query.refresh === "true";
+      const caps = await capabilities.getCapabilities(refresh);
+      res.json(caps);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   // --- Guest Routes ---
   app.get("/api/card", (req, res) => {
     const gid = String(req.query.gid || "guest-anon");
@@ -95,6 +107,10 @@ async function startServer() {
     const level = flags.degradationLevel();
     // Triggers experiment exposure for non-load gids
     flags.persona(gid);
+    const voiceRolloutIncluded = flags.isGuestInVoiceRollout(gid);
+    const langParam = String(req.query.lang || "en-IN");
+    const voicePaused =
+      level > 0 || !flags.voiceReplyEnabled(langParam) || !voiceRolloutIncluded;
 
     let household = hCode ? store.getHousehold(hCode) : null;
     if (household && gid && !gid.startsWith("load-") && gid !== "drawer") {
@@ -108,6 +124,9 @@ async function startServer() {
       elder_mode_default: flags.elderModeDefault({
         age_band: household?.age_band,
       }),
+      voice_rollout_included: voiceRolloutIncluded,
+      voice_rollout_pct: flags.getVoiceRolloutState().pct,
+      voice_paused: voicePaused,
       rsvp: store.getRsvp(gid),
       announcements: store.getAnnouncements(),
     });
@@ -443,12 +462,52 @@ async function startServer() {
     res.json({ ok: true, rel_elder_mode_default: flags.elderModeDefault() });
   });
 
+  app.post("/api/ops-proxy/voice-rollout", (req, res) => {
+    const pct = Number((req.body as { pct?: number })?.pct ?? 100);
+    const updated = flags.setVoiceRolloutPct(pct);
+    res.json({ ok: true, pct: updated, state: getSanitizedOpsState() });
+  });
+
+  app.post("/api/ops-proxy/sync-flags", async (_req, res) => {
+    const syncRes = await flags.syncFromFlagsmith();
+    capabilities.invalidateCache();
+    res.json({ ok: true, ...syncRes, state: getSanitizedOpsState() });
+  });
+
+  app.post("/api/ops-proxy/muhurat-demo", (_req, res) => {
+    const demo = surgeController.startMuhuratDemo();
+    res.json({
+      ok: true,
+      flagsmith_before: demo.flagsmith_before,
+      surge: demo.surge,
+      state: getSanitizedOpsState(),
+    });
+  });
+
+  app.post("/api/ops-proxy/end-surge", (_req, res) => {
+    const surge = surgeController.stop();
+    flags.adminSetDegradation(0, 40, "ops_end_surge", "End surge restored Level 0");
+    res.json({ ok: true, surge, state: getSanitizedOpsState() });
+  });
+
   app.post("/api/ops-proxy/reset", (_req, res) => {
     surgeController.stop();
     metrics.reset();
     alerter.reset();
+    sharedLimiter.reset();
     flags.adminSetDegradation(0, 40, "ops_reset", "Reset to nominal baseline");
     res.json({ ok: true, state: getSanitizedOpsState() });
+  });
+
+  app.post("/api/demo/reset", (_req, res) => {
+    surgeController.stop();
+    metrics.reset();
+    alerter.reset();
+    sharedLimiter.reset();
+    flags.resetForTests();
+    store.resetDemoState();
+    capabilities.invalidateCache();
+    res.json({ ok: true });
   });
 
   // --- Testing App Endpoints ---
@@ -610,6 +669,37 @@ async function startServer() {
       return "Verified GuestConcierge.tsx contains zero developer test/persona/replay UI terms.";
     });
 
+    await check("SEC-6", "/api/capabilities, 3x Muhurat Rush loop & /api/demo/reset succeed cleanly", async () => {
+      const capRes = await fetch(`${base}/api/capabilities`);
+      if (!capRes.ok) throw new Error(`/api/capabilities returned ${capRes.status}`);
+      const capJson = (await capRes.json()) as {
+        live_ai?: unknown;
+        flagsmith?: unknown;
+        nudgebee?: unknown;
+        sarvam_reason?: unknown;
+      };
+      if (
+        typeof capJson.live_ai !== "boolean" ||
+        typeof capJson.flagsmith !== "boolean" ||
+        typeof capJson.nudgebee !== "boolean" ||
+        typeof capJson.sarvam_reason !== "string"
+      ) {
+        throw new Error("Invalid /api/capabilities shape");
+      }
+
+      for (let i = 1; i <= 3; i++) {
+        const startRes = await fetch(`${base}/api/ops-proxy/muhurat-demo`, { method: "POST" });
+        if (!startRes.ok) throw new Error(`Muhurat Rush run #${i} failed: ${startRes.status}`);
+        const endRes = await fetch(`${base}/api/ops-proxy/end-surge`, { method: "POST" });
+        if (!endRes.ok) throw new Error(`End surge #${i} failed: ${endRes.status}`);
+      }
+
+      const resetRes = await fetch(`${base}/api/demo/reset`, { method: "POST" });
+      if (!resetRes.ok) throw new Error(`/api/demo/reset failed: ${resetRes.status}`);
+
+      return "/api/capabilities valid; Muhurat Rush start/end passed 3x consecutively; /api/demo/reset ok.";
+    });
+
     res.json({
       suite: "API & Security Scan",
       passed: results.filter((r) => r.passed).length,
@@ -635,6 +725,7 @@ async function startServer() {
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`HaanJi server listening on http://0.0.0.0:${PORT}`);
     console.log(`Host key (?k=): ${HOST_KEY}`);
+    void capabilities.logStartupCapabilities();
   });
 }
 
